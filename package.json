@@ -1,0 +1,55 @@
+{
+  "name": "vitest-automock",
+  "version": "0.1.0",
+  "description": "A mocking library for vitest",
+  "main": "lib/index.js",
+  "type": "module",
+  "packageManager": "pnpm@9.11.0",
+  "scripts": {
+    "build": "esbuild --bundle --platform=node --format=esm src/index.ts --outfile=lib/index.js",
+    "lint-check": "eslint src/*.ts",
+    "lint": "pnpm lint-check --fix",
+    "format-check": "prettier --check .",
+    "format": "pnpm format-check --write",
+    "type-check": "pnpm tsc --noEmit",
+    "test": "pnpm vitest",
+    "validate": "pnpm lint-check && pnpm format-check && pnpm type-check && pnpm test run",
+    "prepublishOnly": "pnpm build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/insidewhy/vitest-automock"
+  },
+  "keywords": [
+    "vitest",
+    "mock",
+    "mocking",
+    "automock",
+    "magicmock"
+  ],
+  "author": "insidewhy",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "1.11.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "22.8.0",
+    "esbuild": "0.24.0",
+    "eslint": "9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "3.3.3",
+    "typescript": "5.6.3",
+    "typescript-eslint": "^8.11.0"
+  },
+  "peerDependencies": {
+    "vitest": ">=2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "volta": {
+    "pnpm": "9.11.0",
+    "node": "20.17.0"
+  }
+}
