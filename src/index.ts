@@ -1,18 +1,18 @@
 import { vi } from 'vitest'
 
-const returnValueKey = Symbol('return value')
-const proxyKey = Symbol('proxy')
-const metaKey = Symbol('meta')
-
 export const returns = Symbol('returns')
 export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+const returnMap = new WeakMap<any, any>()
+const proxyMap = new WeakMap<any, any>()
+const metaMap = new WeakMap<any, any>()
+
 export function automock(obj: any = {}) {
-  const dataObj = obj[returnValueKey] ?? obj
-  const existingProxy = dataObj[proxyKey]
+  const dataObj = returnMap.get(obj) ?? obj
+  const existingProxy = proxyMap.get(dataObj)
   if (existingProxy) {
     return existingProxy
   }
@@ -22,8 +22,8 @@ export function automock(obj: any = {}) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const meta = target[metaKey]
-        const existingProxy = obj[returnValueKey]?.[proxyKey]
+        const prevRetVal = returnMap.get(obj)
+        const existingProxy = prevRetVal && proxyMap.get(prevRetVal)
         if (existingProxy) {
           return existingProxy
         }
@@ -35,45 +35,46 @@ export function automock(obj: any = {}) {
         if (isReturnsSpy) {
           fun = vi.fn(fun)
         }
+
+        const meta = metaMap.get(target)
         meta!.parent[meta!.key] = fun
-        fun[returnValueKey] = retVal
-        fun[returnValueKey][spy] = fun
+
+        returnMap.set(fun, retVal)
+        retVal[spy] = fun
         return automock(fun)
       }
 
       if (key === spy) {
-        return obj[returnValueKey][spy]
+        return returnMap.get(obj)[spy]
       }
 
-      const existing = target[key]
-      if (existing) {
-        return automock(existing)
+      try {
+        const existing = target[key]
+        if (existing) {
+          return automock(existing)
+        }
+      } catch {
+        // vitest does something to the module that prevents checking if things exist
       }
 
       if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
         const newProp: any = vi.fn()
-        const meta = target[metaKey]
+        const meta = metaMap.get(target)
         meta!.parent[meta!.key] = newProp
-        newProp[proxyKey] = target[proxyKey]
+        proxyMap.set(newProp, proxyMap.get(target))
         // TODO: I think this is needed?
-        newProp[returnValueKey] = target[returnValueKey]
+        returnMap.set(newProp, returnMap.get(target))
         return newProp[key]
       }
 
       const newProp: any = {}
-      newProp[metaKey] = { parent: target, key }
+      metaMap.set(newProp, { parent: target, key })
       target[key] = newProp
       return automock(newProp)
     },
   })
 
-  dataObj[proxyKey] = proxy
+  proxyMap.set(dataObj, proxy)
 
   return proxy
-}
-
-export function automocked(): any {
-  const mocked: any = {}
-  mocked[returnValueKey] = mocked
-  return mocked
 }

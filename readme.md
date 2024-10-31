@@ -83,11 +83,9 @@ import * as octokitRest from '@octokit/rest'
 
 import { appendToIssueBody } from './index'
 
-const { automock, automocked, returns, returnsSpy, spy } = await vi.hoisted(
-  () => import('vitest-automock'),
-)
+const { automock, returns, returnsSpy, spy } = await vi.hoisted(() => import('vitest-automock'))
 
-vi.mock('@octokit/rest', automocked)
+vi.mock('@octokit/rest', () => ({}))
 
 it('can append to body of github ticket', async () => {
   const issues = automock(octokitRest).Octokit[returns].issues
@@ -103,6 +101,11 @@ it('can append to body of github ticket', async () => {
 
 The setup has been reduced from 14 lines to 4 lines, the entire test function is now 7 lines instead of 17.
 The mock is also typesafe and autocomplete can be used to assist with creating the mock.
+
+There are a few things to notice here:
+
+- `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
+- `returnsSpy` works the same but creates a `vi.fn` that can be used to spy on the function.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that are never needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
@@ -165,11 +168,9 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { classWithMultipleDeeplyNestedObjects } from './index'
 import * as lib from './lib'
 
-const { automock, automocked, returns, returnsSpy, spy } = await vi.hoisted(
-  () => import('vitest-automock'),
-)
+const { automock, returns, returnsSpy, spy } = await vi.hoisted(() => import('vitest-automock'))
 
-vi.mock('./lib', automocked)
+vi.mock('./lib', () => ({}))
 
 it('can mock multiple nested properties within deeply nested function with a spy', () => {
   const libMock = automock(lib)
@@ -181,8 +182,6 @@ it('can mock multiple nested properties within deeply nested function with a spy
   expect(getStuff[spy]).toHaveBeenCalledWith(12)
 })
 ```
-
-This shows how `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
 
 ## Implementation
 

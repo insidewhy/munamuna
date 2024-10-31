@@ -4,9 +4,9 @@ import * as lib from './testing/lib'
 
 import { classWithDeeplyNestedObjects, classWithMultipleDeeplyNestedObjects } from './testing/main'
 
-const { automock, automocked, returns, returnsSpy, spy } = await vi.hoisted(() => import('./index'))
+const { automock, returns, returnsSpy, spy } = await vi.hoisted(() => import('./index'))
 
-vi.mock('./testing/lib', automocked)
+vi.mock('./testing/lib', () => ({}))
 
 const libMock = automock(lib)
 
