@@ -1,5 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+export function returnNumber(): number {
+  return 420
+}
+
+export function returnNestedNumber(): { nested: number } {
+  return { nested: 420 }
+}
+
 export class DeeplyNestedObjects {
   outer: {
     inner: {

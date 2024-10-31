@@ -1,4 +1,17 @@
-import { DeeplyNestedObjects, MultipleDeeplyNestedObjects } from './lib'
+import {
+  DeeplyNestedObjects,
+  MultipleDeeplyNestedObjects,
+  returnNumber,
+  returnNestedNumber,
+} from './lib'
+
+export function functionReturningNumber(): number {
+  return returnNumber()
+}
+
+export function functionReturningNestedNumber(): { nested: number } {
+  return returnNestedNumber()
+}
 
 export function classWithDeeplyNestedObjects(): number {
   return new DeeplyNestedObjects().outer.inner.getStuff(12).deep.veryDeep

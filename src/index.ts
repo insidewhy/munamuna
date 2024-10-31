@@ -5,27 +5,32 @@ export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
-const returnMap = new WeakMap<any, any>()
 const proxyMap = new WeakMap<any, any>()
 const metaMap = new WeakMap<any, any>()
+const mockedFunctions = new WeakMap<any, typeof Proxy & { [spy]: Function }>()
 
 export function automock(obj: any = {}) {
-  const dataObj = returnMap.get(obj) ?? obj
-  const existingProxy = proxyMap.get(dataObj)
+  const existingProxy = proxyMap.get(obj)
   if (existingProxy) {
     return existingProxy
   }
 
-  const proxy = new Proxy(dataObj, {
+  const proxy = new Proxy(obj, {
     get(target: any, key) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const prevRetVal = returnMap.get(obj)
-        const existingProxy = prevRetVal && proxyMap.get(prevRetVal)
-        if (existingProxy) {
-          return existingProxy
+        const prevRetVal = mockedFunctions.get(target)
+        if (prevRetVal) {
+          const existingProxy = proxyMap.get(prevRetVal)
+          if (existingProxy) {
+            // upgrade to spy if this doesn't match
+            if (!isReturnsSpy || prevRetVal[spy]) {
+              return existingProxy
+            }
+          }
         }
 
         const retVal: any = {}
@@ -39,13 +44,16 @@ export function automock(obj: any = {}) {
         const meta = metaMap.get(target)
         meta!.parent[meta!.key] = fun
 
-        returnMap.set(fun, retVal)
-        retVal[spy] = fun
-        return automock(fun)
+        if (isReturnsSpy) {
+          retVal[spy] = fun
+        }
+        metaMap.set(fun, meta)
+        mockedFunctions.set(fun, retVal)
+        return automock(retVal)
       }
 
       if (key === spy) {
-        return returnMap.get(obj)[spy]
+        return target[spy]
       }
 
       try {
@@ -62,8 +70,6 @@ export function automock(obj: any = {}) {
         const meta = metaMap.get(target)
         meta!.parent[meta!.key] = newProp
         proxyMap.set(newProp, proxyMap.get(target))
-        // TODO: I think this is needed?
-        returnMap.set(newProp, returnMap.get(target))
         return newProp[key]
       }
 
@@ -74,7 +80,7 @@ export function automock(obj: any = {}) {
     },
   })
 
-  proxyMap.set(dataObj, proxy)
+  proxyMap.set(obj, proxy)
 
   return proxy
 }
