@@ -18,6 +18,29 @@ export function automock(obj: any = {}) {
   }
 
   const proxy = new Proxy(obj, {
+    set(target: any, key, newVal, receiver): boolean {
+      const isReturnsSpy = key === returnsSpy
+
+      if (key === returns || isReturnsSpy) {
+        let fun: any = function () {
+          return newVal
+        }
+        if (isReturnsSpy) {
+          fun = vi.fn(fun)
+          fun[spy] = fun
+        }
+
+        const meta = metaMap.get(target)
+        meta!.parent[meta!.key] = fun
+        metaMap.set(fun, meta)
+
+        Reflect.set(target, key, fun, receiver)
+      } else {
+        Reflect.set(target, key, newVal, receiver)
+      }
+      return true
+    },
+
     get(target: any, key) {
       const isReturnsSpy = key === returnsSpy
 

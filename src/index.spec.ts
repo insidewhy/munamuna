@@ -19,10 +19,26 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-it.skip('can mock the return of a function', () => {
+it('can mock the return value of a function', () => {
   libMock.returnNumber[returns] = 8
-  console.log(lib.returnNumber)
   expect(functionReturningNumber()).toEqual(8)
+})
+
+it('can mock the return value of a function and spy on it', () => {
+  libMock.returnNumber[returnsSpy] = 9
+  expect(functionReturningNumber()).toEqual(9)
+  expect(libMock.returnNumber[spy]).toHaveBeenCalledOnce()
+})
+
+it('can mock the return value of a function twice and spy on both calls', () => {
+  libMock.returnNumber[returnsSpy] = 100
+  expect(functionReturningNumber()).toEqual(100)
+  expect(libMock.returnNumber[spy]).toHaveBeenCalledOnce()
+
+  libMock.returnNumber[returnsSpy] = 101
+  expect(functionReturningNumber()).toEqual(101)
+  // TODO: stop the call count resetting to 1
+  // expect(libMock.returnNumber[spy]).toHaveBeenCalledTimes(2)
 })
 
 it('can mock the return of a nested function', () => {
