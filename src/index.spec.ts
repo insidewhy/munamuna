@@ -37,8 +37,7 @@ it('can mock the return value of a function twice and spy on both calls', () => 
 
   libMock.returnNumber[returnsSpy] = 101
   expect(functionReturningNumber()).toEqual(101)
-  // TODO: stop the call count resetting to 1
-  // expect(libMock.returnNumber[spy]).toHaveBeenCalledTimes(2)
+  expect(libMock.returnNumber[spy]).toHaveBeenCalledTimes(2)
 })
 
 it('can mock the return of a nested function', () => {

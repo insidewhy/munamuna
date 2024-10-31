@@ -5,78 +5,64 @@ export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
 const proxyMap = new WeakMap<any, any>()
 const metaMap = new WeakMap<any, any>()
-const mockedFunctions = new WeakMap<any, typeof Proxy & { [spy]: Function }>()
+const mockedFunctions = new WeakMap<any, any>()
 
-export function automock(obj: any = {}) {
-  const existingProxy = proxyMap.get(obj)
-  if (existingProxy) {
-    return existingProxy
+function mockFunction(target: any, isReturnsSpy: boolean, value: any) {
+  const prevRetVal = mockedFunctions.get(target)
+  if (prevRetVal) {
+    const existingProxy = proxyMap.get(prevRetVal)
+    if (existingProxy) {
+      // upgrade to spy if this doesn't match
+      if (!isReturnsSpy || prevRetVal[spy]) {
+        // console.log('reuse return value')
+        return { existing: existingProxy, retVal: prevRetVal }
+      }
+    }
+  }
+  // console.log('new return value')
+
+  const retVal: any = { value }
+  let fun: any = function () {
+    return retVal.value
+  }
+  if (isReturnsSpy) {
+    fun = vi.fn(fun)
   }
 
-  const proxy = new Proxy(obj, {
-    set(target: any, key, newVal, receiver): boolean {
-      const isReturnsSpy = key === returnsSpy
+  const meta = metaMap.get(target)
+  meta!.parent[meta!.key] = fun
+  retVal[spy] = isReturnsSpy ? fun : undefined
 
-      if (key === returns || isReturnsSpy) {
-        let fun: any = function () {
-          return newVal
-        }
-        if (isReturnsSpy) {
-          fun = vi.fn(fun)
-          fun[spy] = fun
-        }
+  return { retVal, fun, meta }
+}
 
-        const meta = metaMap.get(target)
-        meta!.parent[meta!.key] = fun
-        metaMap.set(fun, meta)
-
-        Reflect.set(target, key, fun, receiver)
-      } else {
-        Reflect.set(target, key, newVal, receiver)
-      }
-      return true
-    },
-
+export function createProxy(obj: any, associatedSpy?: any) {
+  return new Proxy(obj, {
     get(target: any, key) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const prevRetVal = mockedFunctions.get(target)
-        if (prevRetVal) {
-          const existingProxy = proxyMap.get(prevRetVal)
-          if (existingProxy) {
-            // upgrade to spy if this doesn't match
-            if (!isReturnsSpy || prevRetVal[spy]) {
-              return existingProxy
-            }
-          }
+        const mockedFunction = mockFunction(target, isReturnsSpy, {})
+        if (mockedFunction.existing) {
+          return mockedFunction.existing
         }
 
-        const retVal: any = {}
-        let fun: any = function () {
-          return retVal
-        }
-        if (isReturnsSpy) {
-          fun = vi.fn(fun)
-        }
-
-        const meta = metaMap.get(target)
-        meta!.parent[meta!.key] = fun
-
-        if (isReturnsSpy) {
-          retVal[spy] = fun
-        }
+        const { retVal, meta, fun } = mockedFunction
         metaMap.set(fun, meta)
         mockedFunctions.set(fun, retVal)
-        return automock(retVal)
+
+        const proxy = createProxy(retVal.value, isReturnsSpy ? fun : undefined)
+        proxyMap.set(retVal, proxy)
+        // TODO: is this needed?
+        // proxyMap.set(meta.parent, proxy)
+        return proxy
       }
 
       if (key === spy) {
-        return target[spy]
+        return associatedSpy ?? target[spy]
       }
 
       try {
@@ -101,9 +87,45 @@ export function automock(obj: any = {}) {
       target[key] = newProp
       return automock(newProp)
     },
+
+    set(target: any, key, newVal, receiver): boolean {
+      const isReturnsSpy = key === returnsSpy
+
+      if (key === returns || isReturnsSpy) {
+        const mockedFunction = mockFunction(target, isReturnsSpy, newVal)
+        const { existing, retVal: prevRetVal } = mockedFunction
+        if (existing) {
+          // console.log('reuse return value simple')
+          prevRetVal.value = newVal
+          return mockedFunction.existing
+        }
+        // console.log('new return value simple')
+
+        const { retVal, meta, fun } = mockedFunction
+        if (isReturnsSpy) {
+          fun[spy] = fun
+        }
+
+        proxyMap.set(retVal, this)
+        metaMap.set(fun, meta)
+        mockedFunctions.set(fun, retVal)
+        Reflect.set(target, key, fun, receiver)
+      } else {
+        Reflect.set(target, key, newVal, receiver)
+      }
+      return true
+    },
   })
+}
 
-  proxyMap.set(obj, proxy)
-
-  return proxy
+export function automock(obj: any = {}) {
+  const existingProxy = proxyMap.get(obj)
+  // console.log(existingProxy ? 'reuse' : 'new')
+  if (existingProxy) {
+    return existingProxy
+  } else {
+    const proxy = createProxy(obj)
+    proxyMap.set(obj, proxy)
+    return proxy
+  }
 }
