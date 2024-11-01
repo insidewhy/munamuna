@@ -30,6 +30,12 @@ it('can mock the return value of a function and spy on it', () => {
   expect(libMock.returnNumber[spy]).toHaveBeenCalledOnce()
 })
 
+it('can mock the return value of a function using mockReturnValue', () => {
+  const funSpy = libMock.returnNumber.mockReturnValue(72)
+  expect(functionReturningNumber()).toEqual(72)
+  expect(funSpy).toHaveBeenCalledOnce()
+})
+
 it('can mock the return value of a function twice and spy on both calls', () => {
   libMock.returnNumber[returnsSpy] = 100
   expect(functionReturningNumber()).toEqual(100)
@@ -38,6 +44,21 @@ it('can mock the return value of a function twice and spy on both calls', () => 
   libMock.returnNumber[returnsSpy] = 101
   expect(functionReturningNumber()).toEqual(101)
   expect(libMock.returnNumber[spy]).toHaveBeenCalledTimes(2)
+})
+
+it('can override spies with both returnsSpy and mockReturnValue', () => {
+  // TODO: consider allowing this to preserve the number of calls
+  libMock.returnNumber[returnsSpy] = 36
+  expect(functionReturningNumber()).toEqual(36)
+  expect(libMock.returnNumber[spy]).toHaveBeenCalledOnce()
+
+  const funSpy = libMock.returnNumber.mockReturnValue(37)
+  expect(functionReturningNumber()).toEqual(37)
+  expect(funSpy).toHaveBeenCalledOnce()
+
+  libMock.returnNumber[returnsSpy] = 38
+  expect(functionReturningNumber()).toEqual(38)
+  expect(libMock.returnNumber[spy]).toHaveBeenCalledOnce()
 })
 
 it('can mock the return of a nested function', () => {

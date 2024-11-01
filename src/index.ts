@@ -41,13 +41,14 @@ function mockFunction(target: any, isReturnsSpy: boolean, value: any) {
 
 export function createProxy(obj: any, associatedSpy?: any) {
   return new Proxy(obj, {
-    get(target: any, key) {
+    get(target: any, key: string | symbol) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
         const mockedFunction = mockFunction(target, isReturnsSpy, {})
-        if (mockedFunction.existing) {
-          return mockedFunction.existing
+        const { existing } = mockedFunction
+        if (existing) {
+          return existing
         }
 
         const { retVal, meta, fun } = mockedFunction
@@ -65,6 +66,18 @@ export function createProxy(obj: any, associatedSpy?: any) {
         return associatedSpy ?? target[spy]
       }
 
+      if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
+        const meta = metaMap.get(target)
+        // remove any existing mock function that may have been set using [returns] or [returnsSpy]
+        mockedFunctions.delete(meta!.parent[meta!.key])
+
+        const newProp: any = vi.fn()
+        meta!.parent[meta!.key] = newProp
+
+        proxyMap.set(newProp, proxyMap.get(target))
+        return newProp[key]
+      }
+
       try {
         const existing = target[key]
         if (existing) {
@@ -74,21 +87,13 @@ export function createProxy(obj: any, associatedSpy?: any) {
         // vitest does something to the module that prevents checking if things exist
       }
 
-      if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
-        const newProp: any = vi.fn()
-        const meta = metaMap.get(target)
-        meta!.parent[meta!.key] = newProp
-        proxyMap.set(newProp, proxyMap.get(target))
-        return newProp[key]
-      }
-
       const newProp: any = {}
       metaMap.set(newProp, { parent: target, key })
       target[key] = newProp
       return automock(newProp)
     },
 
-    set(target: any, key, newVal, receiver): boolean {
+    set(target: any, key: string | symbol, newVal: any, receiver): boolean {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
