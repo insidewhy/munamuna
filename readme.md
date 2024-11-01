@@ -183,6 +183,23 @@ it('can mock multiple nested properties within deeply nested function with a spy
 })
 ```
 
+It's also possible to use a combination of object assignment and path assignment to modify and update mocks:
+
+```typescript
+it('can use a mixture of assignments and paths to modify a mock', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = automock(mocked)
+  mock.obj = { top: 2, nested: { inside: 3 } }
+  expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
+
+  const { obj } = mock
+  obj.nested.also = 16
+  obj.alsoTop = 4
+  expect(mocked).toEqual({ obj: { alsoTop: 4, top: 2, nested: { inside: 3, also: 16 } } })
+})
+```
+
 ### Resetting mocks
 
 To ensure interactions between tests don't cause issues a mock created with `vitest-automock` can be reset:
@@ -237,6 +254,6 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 
 ## Plans
 
-- Allow mixing `[returns] =`, `[returns.prop]` and `mockReturnValue` without overriding the existing spy
+- Add `[returnsOnce]` and `[spyOnce]`
 - Finish autocomplete support for first release
 - Add ability to change function return values depending on call arguments
