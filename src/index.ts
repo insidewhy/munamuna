@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 export const returns = Symbol('returns')
 export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
+export const reset = Symbol('reset')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -10,55 +11,73 @@ const proxyMap = new WeakMap<any, any>()
 const metaMap = new WeakMap<any, any>()
 const mockedFunctions = new WeakMap<any, any>()
 
-function mockFunction(target: any, isReturnsSpy: boolean, value: any) {
-  const prevRetVal = mockedFunctions.get(target)
-  if (prevRetVal) {
-    const existingProxy = proxyMap.get(prevRetVal)
-    if (existingProxy) {
-      // upgrade to spy if this doesn't match
-      if (!isReturnsSpy || prevRetVal[spy]) {
-        // console.log('reuse return value')
-        return { existing: existingProxy, retVal: prevRetVal }
-      }
+function resetMocks(target: any) {
+  for (const prop of Object.getOwnPropertyNames(target)) {
+    delete target[prop]
+  }
+
+  const meta = metaMap.get(target)
+  if (meta) {
+    delete meta.parent[meta.key]
+  }
+}
+
+function mockFunction(target: any, value: any, isReturnsSpy: boolean) {
+  const prevRetObj = mockedFunctions.get(target)
+  if (prevRetObj) {
+    const existingProxy = proxyMap.get(prevRetObj)
+    if (!existingProxy) {
+      throw new Error(
+        'Internal bug: previous function return value was set but there is no proxy cached, please report this',
+      )
+    }
+
+    // upgrade to spy if this doesn't match
+    if (!isReturnsSpy || prevRetObj[spy]) {
+      // console.log('reuse return value')
+      return { existing: existingProxy, retObj: prevRetObj }
     }
   }
   // console.log('new return value')
 
-  const retVal: any = { value }
-  let fun: any = function () {
-    return retVal.value
-  }
-  if (isReturnsSpy) {
-    fun = vi.fn(fun)
-  }
+  const retObj: any = { value }
+
+  const fun: (() => void) & { [spy]?: any } = isReturnsSpy
+    ? vi.fn(() => retObj.value)
+    : function () {
+        return retObj.value
+      }
 
   const meta = metaMap.get(target)
+  const prevTarget = meta!.parent[meta!.key]
   meta!.parent[meta!.key] = fun
-  retVal[spy] = isReturnsSpy ? fun : undefined
+  retObj[spy] = isReturnsSpy ? fun : undefined
 
-  return { retVal, fun, meta }
+  metaMap.set(fun, meta)
+  mockedFunctions.set(fun, retObj)
+
+  return { retObj, fun, meta, prevTarget }
 }
 
-export function createProxy(obj: any, associatedSpy?: any) {
-  return new Proxy(obj, {
+export function createProxy(initialObj: any, associatedSpy?: any) {
+  return new Proxy(initialObj, {
     get(target: any, key: string | symbol) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const mockedFunction = mockFunction(target, isReturnsSpy, {})
+        const mockedFunction = mockFunction(target, {}, isReturnsSpy)
         const { existing } = mockedFunction
         if (existing) {
           return existing
         }
 
-        const { retVal, meta, fun } = mockedFunction
-        metaMap.set(fun, meta)
-        mockedFunctions.set(fun, retVal)
+        const { retObj, fun } = mockedFunction
 
-        const proxy = createProxy(retVal.value, isReturnsSpy ? fun : undefined)
-        proxyMap.set(retVal, proxy)
-        // TODO: is this needed?
-        // proxyMap.set(meta.parent, proxy)
+        // TODO: find a way to hook into the proxy associated with the previous object
+        // instead of creating a new proxy so that references to the previously created
+        // proxy will act the same as this one
+        const proxy = createProxy(retObj.value, isReturnsSpy ? fun : undefined)
+        proxyMap.set(retObj, proxy)
         return proxy
       }
 
@@ -67,6 +86,7 @@ export function createProxy(obj: any, associatedSpy?: any) {
       }
 
       if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
+        // TODO: do this in a way that can preserve the existing mocked function
         const meta = metaMap.get(target)
         // remove any existing mock function that may have been set using [returns] or [returnsSpy]
         mockedFunctions.delete(meta!.parent[meta!.key])
@@ -76,6 +96,12 @@ export function createProxy(obj: any, associatedSpy?: any) {
 
         proxyMap.set(newProp, proxyMap.get(target))
         return newProp[key]
+      }
+
+      if (key === reset) {
+        return () => {
+          resetMocks(target)
+        }
       }
 
       try {
@@ -97,23 +123,31 @@ export function createProxy(obj: any, associatedSpy?: any) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const mockedFunction = mockFunction(target, isReturnsSpy, newVal)
-        const { existing, retVal: prevRetVal } = mockedFunction
+        const mockedFunction = mockFunction(target, newVal, isReturnsSpy)
+        const { existing, retObj: prevRetObj } = mockedFunction
         if (existing) {
           // console.log('reuse return value simple')
-          prevRetVal.value = newVal
-          return mockedFunction.existing
+          prevRetObj.value = newVal
+          return existing
         }
         // console.log('new return value simple')
 
-        const { retVal, meta, fun } = mockedFunction
+        const { retObj, fun, prevTarget } = mockedFunction
         if (isReturnsSpy) {
-          fun[spy] = fun
+          fun![spy] = fun
+
+          // TODO: find a way to reuse the previous proxy, see below
+          // on the first path access an object proxy is created, this is then replaced when
+          // [returnsSpy] is used as this is the point it is known that the path will be a function
+          // the next line ensures the spy can be accessed from references to the previous proxy
+          // however other accesses to the previous proxy can have undesired results, for example
+          // using it to set a new [returnsSpy] will clobber the one created by this new proxy
+          prevTarget[spy] = fun
+
+          // TODO: provide a way to access this the same way that it works for path style mocks?
         }
 
-        proxyMap.set(retVal, this)
-        metaMap.set(fun, meta)
-        mockedFunctions.set(fun, retVal)
+        proxyMap.set(retObj, this)
         Reflect.set(target, key, fun, receiver)
       } else {
         Reflect.set(target, key, newVal, receiver)

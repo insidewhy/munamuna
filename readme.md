@@ -102,7 +102,7 @@ it('can append to body of github ticket', async () => {
 The setup has been reduced from 14 lines to 4 lines, the entire test function is now 7 lines instead of 17.
 The mock is also typesafe and autocomplete can be used to assist with creating the mock.
 
-There are a few things to notice here:
+This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
 - `returnsSpy` works the same but creates a `vi.fn` that can be used to spy on the function.
@@ -183,6 +183,52 @@ it('can mock multiple nested properties within deeply nested function with a spy
 })
 ```
 
+### Resetting mocks
+
+To ensure interactions between tests don't cause issues a mock created with `vitest-automock` can be reset:
+
+```typescript
+import { beforeEach, expect, it, vi } from 'vitest'
+
+import * as lib from './lib'
+
+const { automock, reset, returns, returnsSpy, spy } = await vi.hoisted(
+  () => import('vitest-automock'),
+)
+
+vi.mock('./lib', () => ({}))
+
+const libMock = automock(lib)
+
+beforeEach(() => {
+  libMock[reset]()
+  vi.clearAllMocks()
+})
+```
+
+This can also be called on any tree to reset all the mocks reachable from that point
+
+```typescript
+it('can reset mocks partially', () => {
+  const mocked = {} as {
+    above: {
+      outer1: { inner: number }
+      outer2: { inner: number }
+    }
+  }
+  const mock = automock(mocked)
+
+  const funReturns = mock.fun[returns]
+  funReturns.outer1.inner = 10
+  funReturns.outer2.inner = 20
+
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  funReturns.outer2[reset]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+})
+```
+
 ## Implementation
 
 `vitest-automock` uses proxies to automatically produce mocks.
@@ -191,5 +237,6 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 
 ## Plans
 
+- Allow mixing `[returns] =`, `[returns.prop]` and `mockReturnValue` without overriding the existing spy
 - Finish autocomplete support for first release
 - Add ability to change function return values depending on call arguments
