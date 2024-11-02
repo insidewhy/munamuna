@@ -1,6 +1,9 @@
 # vitest-automock
 
-Write mocks using vitest so much more easily and with typescript assisted autocomplete.
+Build mocks and spies so much more easily and with typescript assisted autocomplete.
+
+Integrates well with [vitest](https://vitest.dev/), [jest](https://jestjs.io/) and others.
+
 Inspired by [python's MagicMock](https://docs.python.org/3/library/unittest.mock.html#unittest.mock.MagicMock).
 
 ## Installation
@@ -102,15 +105,36 @@ Values returned from mock are also type checked according to the structure of th
 This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
-- `returnsSpy` works the same but creates a `vi.fn` that can be used to spy on the function.
+- `returnsSpy` works the same but creates a spy function (e.g. `vi.fn`)
 - `spy` can be used to access a spy created by `automock` and it will create the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that are never needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
 Again it's possible to work around this, at the cost of more code.
-`vitest-automock` creates `vi.fn` objects on demand whenever `returnsSpy` is used.
+`vitest-automock` creates spies on demand whenever `returnsSpy` is used.
 
 ## Tutorial
+
+### Setup to work with vitest
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    setupFiles: ['setup-vitest.ts'],
+  },
+})
+```
+
+```typescript
+// setup-vitest.ts
+import { vi } from 'vitest'
+import { setup } from 'vitest-automock'
+
+setup({ spyFunction: vi.fn })
+```
 
 ### Creating deeply nested paths
 
@@ -158,7 +182,7 @@ it('can use an assignment followed by a path assignment', () => {
 
 ### Spying on functions
 
-This following example shows how to create a `vi.fn` easily:
+This following example shows how to create a spy easily:
 
 ```typescript
 it('can spy on a function using [returnsSpy]', () => {
@@ -170,7 +194,7 @@ it('can spy on a function using [returnsSpy]', () => {
 })
 ```
 
-It should be noted that the `vi.fn()` is only created when `[returnsSpy]` is accessed, `vitest-automock` does not need to construct `vi.fn()` objects that are not explicitly requested.
+It should be noted that spies are only created when `[returnsSpy]` is used, `vitest-automock` does not need to construct spies that are not explicitly requested.
 
 The following syntax can also be used:
 
@@ -184,7 +208,7 @@ it('can spy on a top level function using mockReturnValue', () => {
 })
 ```
 
-Here also the `vi.fn` is created lazily when `mockReturnValue` is accessed.
+Here also the spy is created lazily when `mockReturnValue` is accessed.
 
 `mockReturnValueOnce` can also be used:
 

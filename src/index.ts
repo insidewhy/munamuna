@@ -1,5 +1,3 @@
-import { vi } from 'vitest'
-
 export const returns = Symbol('returns')
 export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
@@ -8,6 +6,15 @@ export const reset = Symbol('reset')
 export const reattach = Symbol('reattach')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+interface Spy {
+  mockReturnValueOnce<T>(value: T): void
+  mockReturnValue<T>(value: T): void
+}
+
+type SpyFunction = (option?: any) => Spy
+
+let spyFunction: SpyFunction
 
 const proxyMap = new WeakMap<any, any>()
 const metaMap = new WeakMap<any, any>()
@@ -49,7 +56,7 @@ function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean
   const implementation = function () {
     return retObj.value
   }
-  const fun: (() => void) & { [spy]?: any } = isReturnsSpy ? vi.fn(implementation) : implementation
+  const fun: any = isReturnsSpy ? spyFunction(implementation) : implementation
 
   meta.parent[meta.key] = fun
   // the spy can be hosted in the returned object container, it's now detached and not used
@@ -190,4 +197,12 @@ export function automock(obj: any = {}) {
     proxyMap.set(obj, proxy)
     return proxy
   }
+}
+
+interface Setup {
+  spyFunction: SpyFunction
+}
+
+export function setup({ spyFunction: spyFunctionParam }: Setup) {
+  spyFunction = spyFunctionParam
 }
