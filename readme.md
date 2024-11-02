@@ -1,5 +1,7 @@
 # vitest-automock
 
+[![tests](https://github.com/insidewhy/vitest-automock/actions/workflows/test.yaml/badge.svg)](https://github.com/insidewhy/vitest-automock/actions/workflows/test.yaml)
+
 Build mocks and spies so much more easily and with typescript assisted autocomplete.
 
 Integrates well with [vitest](https://vitest.dev/), [jest](https://jestjs.io/) and others.
@@ -108,7 +110,7 @@ This test shows how to mock functions:
 - `returnsSpy` works the same but creates a spy function (e.g. `vi.fn`)
 - `spy` can be used to access a spy created by `automock` and it will create the spy if none exists.
 
-There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that are never needed.
+There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that may never be needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
 Again it's possible to work around this, at the cost of more code.
 `vitest-automock` creates spies on demand whenever `returnsSpy` is used.
@@ -302,8 +304,7 @@ it('cannot alter a value by assigning directly to it', () => {
 ```
 
 Here `value` is a proxy, assigning to it will overwrite the reference to the proxy rather than set a value at the intended path.
-Always using `const` when assigning values from automock paths can be used to avoid this to have the typesystem check it.
-Linter checks for unused variables will also usually indicate this mistake.
+This issue can be noticed/avoided by using `const` for all variable definitions assigned from an automock or setting up a lint tool to check for unused variables.
 To have this work as intended `automock(mocked).value = 5` could be used, but this notation is not always convenient.
 
 An alternative way is shown below:
