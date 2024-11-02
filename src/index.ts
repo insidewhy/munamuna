@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 export const returns = Symbol('returns')
 export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
+export const set = Symbol('set')
 export const reset = Symbol('reset')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -25,7 +26,11 @@ function resetMocks(target: any) {
 
 function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(target)
-  const prevTarget = meta!.parent[meta!.key]
+  if (!meta) {
+    throw new Error('Cannot create a function on a top-level automock')
+  }
+
+  const prevTarget = meta.parent[meta.key]
 
   // if there is a value then create a new object to host this value, allowing the value
   // to be altered via `retObj.value = blah` otherwise set the value to the previous target
@@ -37,7 +42,7 @@ function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean
   }
   const fun: (() => void) & { [spy]?: any } = isReturnsSpy ? vi.fn(implementation) : implementation
 
-  meta!.parent[meta!.key] = fun
+  meta.parent[meta.key] = fun
   // the spy can be hosted in the returned object container, it's now detached and not used
   // for anything but the function return value
   retObj[spy] = isReturnsSpy ? fun : undefined
@@ -82,6 +87,10 @@ export function createProxy(obj: any) {
         }
       }
 
+      if (key === set) {
+        return proxy
+      }
+
       if (key === reset) {
         return () => {
           resetMocks(target)
@@ -123,6 +132,20 @@ export function createProxy(obj: any) {
           } else {
             mockFunction(proxy, target, newVal, false)
           }
+        }
+      } else if (key === set) {
+        if (typeof newVal === 'object') {
+          // avoid detaching the original target from its proxy
+          for (const prop of Object.getOwnPropertyNames(target)) {
+            delete target[prop]
+          }
+          Object.assign(target, newVal)
+        } else {
+          const meta = metaMap.get(target)
+          if (!meta) {
+            throw new Error('Cannot use [set] on a top-level automock')
+          }
+          meta.parent[meta.key] = newVal
         }
       } else {
         target[key] = newVal

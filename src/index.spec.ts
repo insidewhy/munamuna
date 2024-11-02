@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { automock, reset, returns, returnsSpy, spy } from './index'
+import { automock, reset, returns, returnsSpy, set, spy } from './index'
 import * as lib from './testing/lib'
 
 import {
@@ -208,6 +208,21 @@ describe('when used to mock module via vi.mock', () => {
   })
 })
 
+it('can create a deeply nested path', () => {
+  const mocked = {} as { outer: { inner: { innerMost: number } } }
+  automock(mocked).outer.inner.innerMost = 7
+  expect(mocked).toEqual({ outer: { inner: { innerMost: 7 } } })
+})
+
+it('can create multiple nested paths with path assignment', () => {
+  type Nested = { outer: { inner: number } }
+  const mocked = {} as { value1: Nested; value2: Nested }
+  const { value1, value2 } = automock(mocked)
+  value1.outer.inner = 12
+  value2.outer.inner = 13
+  expect(mocked).toEqual({ value1: { outer: { inner: 12 } }, value2: { outer: { inner: 13 } } })
+})
+
 it('can mock and update a property', () => {
   const mocked = {} as { value: number }
   const mock = automock(mocked)
@@ -245,14 +260,14 @@ it('can reset mocks partially', () => {
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
 })
 
-it('can mock top level function', () => {
+it('can mock a function', () => {
   const mocked = {} as { fun: () => number }
   const mock = automock(mocked)
   mock.fun[returns] = 12
   expect(mocked.fun()).toEqual(12)
 })
 
-it('can mock top level function with a return path', () => {
+it('can mock function with a return path', () => {
   const mocked = {} as { fun: () => { inner: number } }
   const mock = automock(mocked)
   mock.fun[returns].inner = 12
@@ -306,7 +321,7 @@ it('can use the previous proxy reference to access a function spy set with a pat
   expect(mock.fun[spy]).toHaveBeenCalled()
 })
 
-it('can spy on a top level function using [returnsSpy]', () => {
+it('can spy on a function using [returnsSpy]', () => {
   const mocked = {} as { fun: () => number }
   const { fun } = automock(mocked)
   fun[returnsSpy] = 12
@@ -314,7 +329,7 @@ it('can spy on a top level function using [returnsSpy]', () => {
   expect(fun[spy]).toHaveBeenCalled()
 })
 
-it('can spy on a top level function using mockReturnValue', () => {
+it('can spy on a function using mockReturnValue', () => {
   const mocked = {} as { fun: () => number }
   const { fun } = automock(mocked)
   const funSpy = fun.mockReturnValue(12)
@@ -322,7 +337,7 @@ it('can spy on a top level function using mockReturnValue', () => {
   expect(funSpy).toHaveBeenCalled()
 })
 
-it('can spy on a top level function using mockReturnValueOnce', () => {
+it('can spy on a function using mockReturnValueOnce', () => {
   const mocked = {} as { fun: () => number }
   const { fun } = automock(mocked)
   const funSpy = fun.mockReturnValueOnce(12)
@@ -334,7 +349,7 @@ it('can spy on a top level function using mockReturnValueOnce', () => {
   expect(fun[spy]).toHaveBeenCalledTimes(2)
 })
 
-it('can spy on a top level function with a return path', () => {
+it('can spy on a function with a return path', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
   const mock = automock(mocked)
   const fun = mock.fun[returnsSpy]
@@ -344,7 +359,7 @@ it('can spy on a top level function with a return path', () => {
 })
 
 it('can use a mixture of assignments and paths to modify a mock', () => {
-  //eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
   const mock = automock(mocked)
   mock.obj = { top: 2, nested: { inside: 3 } }
@@ -391,4 +406,71 @@ it('can use [spy] to create a nonexistent function proxy', () => {
 
   mocked.fun()
   expect(fun).toHaveBeenCalled()
+})
+
+it('cannot alter a value by assigning directly to it', () => {
+  const mocked = {} as { value: number }
+  let { value } = automock(mocked)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  value = 5
+  expect(mocked).not.toEqual({ value: 5 })
+})
+
+it('can use [set] to alter the existing target', () => {
+  const mocked = {} as { value: number }
+  const { value } = automock(mocked)
+  value[set] = 5
+  expect(mocked).toEqual({ value: 5 })
+})
+
+it('can use destructuring syntax with [set] to alter multiple paths', () => {
+  const mocked = {} as { value: number; outer: { inner: number } }
+  const { value, outer } = automock(mocked)
+  value[set] = 6
+  outer.inner = 7
+  expect(mocked).toEqual({ value: 6, outer: { inner: 7 } })
+})
+
+it('can use [set] to alter an existing object using a path', () => {
+  const mocked = {} as { value: { inner: number } }
+  const { value } = automock(mocked)
+  value[set].inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
+
+it('cannot use [set] to alter an existing object using a path', () => {
+  const mocked = {} as { value: { inner: number } }
+  const { value } = automock(mocked)
+  value[set].inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
+
+it('cannot use [set] to create a primitive value then use a path expression after', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const { value } = automock(mocked)
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
+  value.inner = 5
+  expect(mocked).not.toEqual({ value: { inner: 5 } })
+})
+
+it('can use [set] to overwrite an object then alter it with a path expression', () => {
+  const mocked = {} as { value: { first: number; second?: number } }
+  const { value } = automock(mocked)
+
+  value.second = 12
+  value[set] = { first: 5 }
+  expect(mocked).toEqual({ value: { first: 5 } })
+
+  value.second = 292
+  expect(mocked).toEqual({ value: { first: 5, second: 292 } })
+})
+
+it('can use [set] to alter the existing object multiple times', () => {
+  const mocked = {} as { value: number }
+  const { value } = automock(mocked)
+  value[set] = 5
+  expect(mocked).toEqual({ value: 5 })
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
 })

@@ -86,7 +86,7 @@ import { appendToIssueBody } from './index'
 vi.mock('@octokit/rest', () => ({}))
 
 it('can append to body of github ticket', async () => {
-  const issues = automock(octokitRest).Octokit[returns].issues
+  const { issues } = automock(octokitRest).Octokit[returns]
   issues.get[returnsSpy].data.body = 'some text'
   const update = issues.update[spy]
 
@@ -111,6 +111,31 @@ Again it's possible to work around this, at the cost of more code.
 `vitest-automock` creates `vi.fn` objects on demand whenever `returnsSpy` is used.
 
 ## Tutorial
+
+### Creating deeply nested paths
+
+Path assignment can easily be used to create a nested object:
+
+```typescript
+it('can create a deeply nested path', () => {
+  const mocked = {} as { outer: { inner: { innerMost: number } } }
+  automock(mocked).outer.inner.innerMost = 7
+  expect(mocked).toEqual({ outer: { inner: { innerMost: 7 } } })
+})
+```
+
+Destructuring assignment can be used to assign to multiple nested objects:
+
+```typescript
+it('can create multiple nested paths with path assignment', () => {
+  type Nested = { outer: { inner: number } }
+  const mocked = {} as { value1: Nested; value2: Nested }
+  const { value1, value2 } = automock(mocked)
+  value1.outer.inner = 12
+  value2.outer.inner = 13
+  expect(mocked).toEqual({ value1: { outer: { inner: 12 } }, value2: { outer: { inner: 13 } } })
+})
+```
 
 ### Mixing mock styles
 
@@ -237,6 +262,93 @@ it('can reset mocks partially', () => {
 })
 ```
 
+### Using \[set]
+
+This library is implemented using proxies which creates some restrictions.
+Consider the following example:
+
+```typescript
+it('cannot alter a value by assigning directly to it', () => {
+  const mocked = {} as { value: number }
+  let { value } = automock(mocked)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  value = 5
+  expect(mocked).not.toEqual({ value: 5 })
+})
+```
+
+Here `value` is a proxy, assigning to it will overwrite the reference to the proxy rather than set a value at the intended path.
+Always using `const` when assigning values from automock paths can be used to avoid this to have the typesystem check it.
+Linter checks for unused variables will also usually indicate this mistake.
+To have this work as intended `automock(mocked).value = 5` could be used, but this notation is not always convenient.
+
+An alternative way is shown below:
+
+```typescript
+it('can use [set] to alter an existing object', () => {
+  const mocked = {} as { value: number }
+  const { value } = automock(mocked)
+  value[set] = 5
+  expect(mocked).toEqual({ value: 5 })
+})
+```
+
+This can be useful when using destructuring assignment to create multiple paths:
+
+```typescript
+it('can use destructuring syntax with [set] to alter multiple paths', () => {
+  const mocked = {} as { value: number; outer: { inner: number } }
+  const { value, outer } = automock(mocked)
+  value[set] = 6
+  outer.inner = 7
+  expect(mocked).toEqual({ value: 6, outer: { inner: 7 } })
+})
+```
+
+Using `[set]` with a non-object value followed by a path expression will not work as the first call to `[set]` will detach the internal object reference from the tree:
+
+```typescript
+it('cannot use [set] to create a primitive value then use a path expression after', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const { value } = automock(mocked)
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
+  value.inner = 5
+  expect(mocked).not.toEqual({ value: { inner: 5 } })
+})
+```
+
+However things work as expected when using `[set]` to assign or overwrite an object:
+
+```typescript
+it('can use [set] to overwrite an object then alter it with a path expression', () => {
+  const mocked = {} as { value: { first: number; second?: number } }
+  const { value } = automock(mocked)
+
+  // this doesn't affect whether the test passes but shows that `[set]` can be used to
+  // remove existing properties
+  value.second = 12
+  value[set] = { first: 5 }
+  expect(mocked).toEqual({ value: { first: 5 } })
+
+  value.second = 292
+  expect(mocked).toEqual({ value: { first: 5, second: 292 } })
+})
+```
+
+Multiple direct assignments of primitive values using `[set]` also works:
+
+```typescript
+it('can use [set] to alter the existing object multiple times', () => {
+  const mocked = {} as { value: number }
+  const { value } = automock(mocked)
+  value[set] = 5
+  expect(mocked).toEqual({ value: 5 })
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
+})
+```
+
 ## Implementation
 
 `vitest-automock` uses proxies to automatically produce mocks.
@@ -245,6 +357,5 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 
 ## Plans
 
-- Add `[returnsOnce]` and `[spyOnce]`
 - Finish autocomplete support for first release
 - Add ability to change function return values depending on call arguments
