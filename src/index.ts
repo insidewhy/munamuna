@@ -23,7 +23,7 @@ function resetMocks(target: any) {
   }
 }
 
-function mockFunction(target: any, value: any, isReturnsSpy: boolean) {
+function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(target)
   const prevTarget = meta!.parent[meta!.key]
 
@@ -45,6 +45,7 @@ function mockFunction(target: any, value: any, isReturnsSpy: boolean) {
   functionSet.set(prevTarget, retObj)
 
   metaMap.set(fun, meta)
+  proxyMap.set(fun, proxy)
 
   return fun
 }
@@ -61,14 +62,12 @@ export function createProxy(obj: any) {
         }
         // console.log('create mock function')
 
-        const fun = mockFunction(target, undefined, isReturnsSpy)
-        // this ensures the proxy can be reused if accessed via an ancestor proxy
-        proxyMap.set(fun, proxy)
+        mockFunction(proxy, target, undefined, isReturnsSpy)
         return proxy
       }
 
       if (key === spy) {
-        return functionSet.get(target)[spy]
+        return functionSet.get(target)?.[spy] ?? mockFunction(proxy, target, undefined, true)
       }
 
       if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
@@ -78,9 +77,7 @@ export function createProxy(obj: any) {
           return retObj[spy][key]
         } else {
           // console.log('create mock function')
-          const fun = mockFunction(target, undefined, true)
-          // this ensures the proxy can be reused if accessed via an ancestor proxy
-          proxyMap.set(fun, proxy)
+          const fun = mockFunction(proxy, target, undefined, true)
           return (fun as any)[key]
         }
       }
@@ -121,12 +118,10 @@ export function createProxy(obj: any) {
         } else {
           // console.log('create mock function')
           if (isReturnsSpy) {
-            const fun = mockFunction(target, undefined, true)
+            const fun = mockFunction(proxy, target, undefined, true)
             ;(fun as any).mockReturnValue(newVal)
-            proxyMap.set(fun, proxy)
           } else {
-            const fun = mockFunction(target, newVal, false)
-            proxyMap.set(fun, proxy)
+            mockFunction(proxy, target, newVal, false)
           }
         }
       } else {

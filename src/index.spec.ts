@@ -331,15 +331,15 @@ it('can spy on a top level function using mockReturnValueOnce', () => {
   expect(mocked.fun()).toEqual(12)
   expect(funSpy).toHaveBeenCalled()
   expect(mocked.fun()).toEqual(13)
-  expect(funSpy).toHaveBeenCalledTimes(2)
+  expect(fun[spy]).toHaveBeenCalledTimes(2)
 })
 
 it('can spy on a top level function with a return path', () => {
-  const mocked = {} as { fun: () => { inner: number } }
+  const mocked = {} as { fun: () => { outer: { inner: number } } }
   const mock = automock(mocked)
   const fun = mock.fun[returnsSpy]
-  fun.inner = 12
-  expect(mocked.fun()).toEqual({ inner: 12 })
+  fun.outer.inner = 12
+  expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
   expect(fun[spy]).toHaveBeenCalled()
 })
 
@@ -383,4 +383,12 @@ it('reuses cached object proxies', () => {
   expect(mock.above === mock.above).toEqual(true)
   expect(mock.inside.nested === mock.inside.nested).toEqual(true)
   expect(mock.inside.nested.moreNested === mock.inside.nested.moreNested).toEqual(true)
+})
+
+it('can use [spy] to create a nonexistent function proxy', () => {
+  const mocked = {} as { fun: () => void }
+  const fun = automock(mocked).fun[spy]
+
+  mocked.fun()
+  expect(fun).toHaveBeenCalled()
 })

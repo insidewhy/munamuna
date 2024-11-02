@@ -87,23 +87,23 @@ vi.mock('@octokit/rest', () => ({}))
 
 it('can append to body of github ticket', async () => {
   const issues = automock(octokitRest).Octokit[returns].issues
-  const get = issues.get[returnsSpy]
-  get.data.body = 'some text'
-  const update = issues.update[returnsSpy]
+  issues.get[returnsSpy].data.body = 'some text'
+  const update = issues.update[spy]
 
   await appendToIssueBody({ owner: 'son', repo: 'me', issue_number: 15 }, 'appended')
-  expect(get[spy]).toHaveBeenCalledOnce()
-  expect(update[spy]).toHaveBeenCalledWith(expect.objectContaining({ body: `some text appended` }))
+  expect(issues.get[spy]).toHaveBeenCalledOnce()
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ body: `some text appended` }))
 })
 ```
 
-The setup has been reduced from 14 lines to 4 lines, the entire test function is now 7 lines instead of 17.
-The mock is also typesafe and autocomplete can be used to assist with creating the mock.
+The setup has been reduced from 14 lines to 3 lines, the entire test function is now 6 lines instead of 17.
+Values returned from mock are also type checked according to the structure of the object being mocked and autocomplete can be used to assist with creating the mock.
 
 This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
 - `returnsSpy` works the same but creates a `vi.fn` that can be used to spy on the function.
+- `spy` can be used to access a spy created by `automock` and it will create the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that are never needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
@@ -173,9 +173,26 @@ it('can spy on a top level function using mockReturnValueOnce', () => {
   expect(mocked.fun()).toEqual(12)
   expect(funSpy).toHaveBeenCalled()
   expect(mocked.fun()).toEqual(13)
-  expect(funSpy).toHaveBeenCalledTimes(2)
+  // funSpy and fun[spy] are equivalent, either can be used below
+  expect(fun[spy]).toHaveBeenCalledTimes(2)
 })
 ```
+
+When mocking a function that returns a nested structure it's generally easier to use the `[returnsSpy]` version:
+
+```typescript
+it('can spy on a function with a return path', () => {
+  const mocked = {} as { fun: () => { outer: { inner: number } } }
+  const mock = automock(mocked)
+  const fun = mock.fun[returnsSpy]
+  fun.outer.inner = 12
+  expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
+  expect(fun[spy]).toHaveBeenCalled()
+})
+```
+
+In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]`, either can be useful depending on the context.
+From the above examples it may be noticed that the latter leads to shorter code when `automock` is used to build a return path and the former leads to shorter code in all other cases.
 
 ### Resetting mocks
 
