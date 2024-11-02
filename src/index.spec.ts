@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { automock, reset, returns, returnsSpy, set, spy } from './index'
+import { automock, reattach, reset, returns, returnsSpy, set, spy } from './index'
 import * as lib from './testing/lib'
 
 import {
@@ -426,13 +426,29 @@ it('cannot assign a primitive value then use a path assignment from a pre-existi
   expect(mocked).not.toEqual({ value: { inner: 5 } })
 })
 
-it('can assign a primitive value then use a path assignment from a new reference', () => {
-  const mocked = {} as { value: { inner: number } | number }
+it("can use [reattach] to reattach a proxy's object to the mock", () => {
+  const mocked = {} as { outer: { inner: number } | number }
   const mock = automock(mocked)
-  mock.value = 6
-  expect(mocked).toEqual({ value: 6 })
-  mock.value.inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  const { outer } = mock
+  outer.inner = 5
+
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+
+  outer[reattach]()
+  expect(mocked).toEqual({ outer: { inner: 5 } })
+
+  outer.inner = 7
+  expect(mocked).toEqual({ outer: { inner: 7 } })
+})
+
+it('can assign a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { outer: { inner: number } | number }
+  const mock = automock(mocked)
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('can use [set] to alter the existing target', () => {
@@ -451,50 +467,50 @@ it('can use destructuring syntax with [set] to alter multiple paths', () => {
 })
 
 it('can use [set] to alter an existing object using a path', () => {
-  const mocked = {} as { value: { inner: number } }
-  const { value } = automock(mocked)
-  value[set].inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  const mocked = {} as { outer: { inner: number } }
+  const { outer } = automock(mocked)
+  outer[set].inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('cannot use [set] to alter an existing object using a path', () => {
-  const mocked = {} as { value: { inner: number } }
-  const { value } = automock(mocked)
-  value[set].inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  const mocked = {} as { outer: { inner: number } }
+  const { outer } = automock(mocked)
+  outer[set].inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
-  const mocked = {} as { value: { inner: number } | number }
-  const { value } = automock(mocked)
-  value[set] = 6
-  expect(mocked).toEqual({ value: 6 })
-  value.inner = 5
-  expect(mocked).not.toEqual({ value: { inner: 5 } })
+  const mocked = {} as { outer: { inner: number } | number }
+  const { outer } = automock(mocked)
+  outer[set] = 6
+  expect(mocked).toEqual({ outer: 6 })
+  outer.inner = 5
+  expect(mocked).not.toEqual({ outer: { inner: 5 } })
 })
 
 it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
-  const mocked = {} as { value: { inner: number } | number }
+  const mocked = {} as { outer: { inner: number } | number }
   const mock = automock(mocked)
-  const { value } = mock
-  value[set] = 6
-  expect(mocked).toEqual({ value: 6 })
-  mock.value.inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  const { outer } = mock
+  outer[set] = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
-  const mocked = {} as { value: { first: number; second?: number } }
-  const { value } = automock(mocked)
+  const mocked = {} as { outer: { first: number; second?: number } }
+  const { outer } = automock(mocked)
 
   // this doesn't affect whether the test passes but shows that `[set]` can be used to
   // remove existing properties
-  value.second = 12
-  value[set] = { first: 5 }
-  expect(mocked).toEqual({ value: { first: 5 } })
+  outer.second = 12
+  outer[set] = { first: 5 }
+  expect(mocked).toEqual({ outer: { first: 5 } })
 
-  value.second = 292
-  expect(mocked).toEqual({ value: { first: 5, second: 292 } })
+  outer.second = 292
+  expect(mocked).toEqual({ outer: { first: 5, second: 292 } })
 })
 
 it('can use [set] to alter a property multiple times', () => {

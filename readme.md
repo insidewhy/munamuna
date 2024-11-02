@@ -307,53 +307,73 @@ it('can use destructuring syntax with [set] to alter multiple paths', () => {
 
 ### Gotchas
 
-Setting a non-object value then using a pre-existing path assignment will not work as the assignment of the primitive value will detach the object used by the pre-existing proxy from the mocked object graph.
+Setting a non-object value then using a path assignment on an object that was constructed before this will not work as the assignment of the primitive value will detach the object used by the pre-existing proxy from the mocked object graph.
 
 ```typescript
-it('cannot assign a primitive value then use a path assignment from a pre-existing reference after', () => {
-  const mocked = {} as { value: { inner: number } | number }
+it('cannot assign a primitive value then use a path assignment from a pre-existing reference', () => {
+  const mocked = {} as { outer: { inner: number } | number }
   const mock = automock(mocked)
-  const { value } = mock
-  mock.value = 6
-  expect(mocked).toEqual({ value: 6 })
-  value.inner = 5
-  expect(mocked).not.toEqual({ value: { inner: 5 } })
+  const { outer } = mock
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+  outer.inner = 5
+  expect(mocked).not.toEqual({ outer: { inner: 5 } })
 })
 ```
 
 This can be worked around by grabbing a new reference and assigning the object to that:
 
 ```typescript
-it('can assign a primitive value then use a path assignment from a new reference after', () => {
-  const mocked = {} as { value: { inner: number } | number }
+it('can assign a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { outer: { inner: number } | number }
   const mock = automock(mocked)
-  mock.value = 6
-  expect(mocked).toEqual({ value: 6 })
-  mock.value.inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 ```
 
-The same limitation and work-around apply when using `[set]`:
+The `[reattach]` method can also be used:
+
+```typescript
+it("can use [reattach] to reattach a proxy's object to the mock", () => {
+  const mocked = {} as { outer: { inner: number } | number }
+  const mock = automock(mocked)
+  const { outer } = mock
+  outer.inner = 5
+
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+
+  outer[reattach]()
+  expect(mocked).toEqual({ outer: { inner: 5 } })
+
+  outer.inner = 7
+  expect(mocked).toEqual({ outer: { inner: 7 } })
+})
+```
+
+The same limitation and work-arounds apply when using `[set]`:
 
 ```typescript
 it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
-  const mocked = {} as { value: { inner: number } | number }
-  const { value } = automock(mocked)
-  value[set] = 6
-  expect(mocked).toEqual({ value: 6 })
-  value.inner = 5
-  expect(mocked).not.toEqual({ value: { inner: 5 } })
+  const mocked = {} as { outer: { inner: number } | number }
+  const { outer } = automock(mocked)
+  outer[set] = 6
+  expect(mocked).toEqual({ outer: 6 })
+  outer.inner = 5
+  expect(mocked).not.toEqual({ outer: { inner: 5 } })
 })
 
 it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
-  const mocked = {} as { value: { inner: number } | number }
+  const mocked = {} as { outer: { inner: number } | number }
   const mock = automock(mocked)
-  const { value } = mock
-  value[set] = 6
-  expect(mocked).toEqual({ value: 6 })
-  mock.value.inner = 5
-  expect(mocked).toEqual({ value: { inner: 5 } })
+  const { outer } = mock
+  outer[set] = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 ```
 
@@ -374,17 +394,17 @@ it('can use an object assignment followed by a path assignment from a pre-existi
 })
 
 it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
-  const mocked = {} as { value: { first: number; second?: number } }
-  const { value } = automock(mocked)
+  const mocked = {} as { outer: { first: number; second?: number } }
+  const { outer } = automock(mocked)
 
   // this doesn't affect whether the test passes but shows that `[set]` can be used to
   // remove existing properties
-  value.second = 12
-  value[set] = { first: 5 }
-  expect(mocked).toEqual({ value: { first: 5 } })
+  outer.second = 12
+  outer[set] = { first: 5 }
+  expect(mocked).toEqual({ outer: { first: 5 } })
 
-  value.second = 292
-  expect(mocked).toEqual({ value: { first: 5, second: 292 } })
+  outer.second = 292
+  expect(mocked).toEqual({ outer: { first: 5, second: 292 } })
 })
 ```
 

@@ -5,6 +5,7 @@ export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 export const set = Symbol('set')
 export const reset = Symbol('reset')
+export const reattach = Symbol('reattach')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -22,6 +23,14 @@ function resetMocks(target: any) {
   if (meta) {
     delete meta.parent[meta.key]
   }
+}
+
+function reattachProxy(target: any) {
+  const meta = metaMap.get(target)
+  if (!meta) {
+    throw new Error('Cannot reattach a top level proxy')
+  }
+  meta.parent[meta.key] = target
 }
 
 function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean) {
@@ -94,6 +103,12 @@ export function createProxy(obj: any) {
       if (key === reset) {
         return () => {
           resetMocks(target)
+        }
+      }
+
+      if (key === reattach) {
+        return () => {
+          reattachProxy(target)
         }
       }
 
