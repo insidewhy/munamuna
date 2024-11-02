@@ -9,7 +9,6 @@ export const reset = Symbol('reset')
 
 const proxyMap = new WeakMap<any, any>()
 const metaMap = new WeakMap<any, any>()
-const targetRedirects = new WeakMap<any, any>()
 // function against return object container
 const functionSet = new WeakMap<any, any>()
 
@@ -24,73 +23,67 @@ function resetMocks(target: any) {
   }
 }
 
-function mockFunction(
-  target: any,
-  value: any,
-  isReturnsSpy: boolean,
-  redirectTargetToValue = false,
-) {
-  const retObj: any = { value }
-
-  const fun: (() => void) & { [spy]?: any } = isReturnsSpy
-    ? vi.fn(() => retObj.value)
-    : function () {
-        return retObj.value
-      }
-
+function mockFunction(target: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(target)
   const prevTarget = meta!.parent[meta!.key]
+
+  // if there is a value then create a new object to host this value, allowing the value
+  // to be altered via `retObj.value = blah` otherwise set the value to the previous target
+  // so that path options on the original proxy can update the returned value
+  const retObj: any = value === undefined ? { value: prevTarget } : { value }
+
+  const implementation = function () {
+    return retObj.value
+  }
+  const fun: (() => void) & { [spy]?: any } = isReturnsSpy ? vi.fn(implementation) : implementation
+
   meta!.parent[meta!.key] = fun
-  target[spy] = isReturnsSpy ? fun : undefined
-  functionSet.set(target, retObj)
+  // the spy can be hosted in the returned object container, it's now detached and not used
+  // for anything but the function return value
+  retObj[spy] = isReturnsSpy ? fun : undefined
+
+  functionSet.set(prevTarget, retObj)
 
   metaMap.set(fun, meta)
-
-  if (redirectTargetToValue) {
-    // ensure setting path values on any handles to the previous proxy work
-    targetRedirects.set(prevTarget, retObj.value)
-  }
 
   return fun
 }
 
-export function createProxy(initialObj: any) {
-  const proxy = new Proxy(initialObj, {
-    get(initialTarget: any, key: string | symbol) {
+export function createProxy(obj: any) {
+  const proxy = new Proxy(obj, {
+    get(target: any, key: string | symbol) {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        if (functionSet.has(initialTarget)) {
+        if (functionSet.has(target)) {
           // console.log('reuse mock function')
           return proxy
         }
         // console.log('create mock function')
 
-        const fun = mockFunction(initialTarget, {}, isReturnsSpy, true)
+        const fun = mockFunction(target, undefined, isReturnsSpy)
         // this ensures the proxy can be reused if accessed via an ancestor proxy
         proxyMap.set(fun, proxy)
         return proxy
       }
 
       if (key === spy) {
-        return initialTarget[spy]
+        return functionSet.get(target)[spy]
       }
 
       if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
-        if (functionSet.has(initialTarget)) {
+        const retObj = functionSet.get(target)
+        if (retObj) {
           // console.log('reuse mock function')
-          return initialTarget[spy][key]
+          return retObj[spy][key]
         } else {
           // console.log('create mock function')
-          const fun = mockFunction(initialTarget, undefined, true)
-
-          // to reuse the proxy if accessed via the ancestor again
+          const fun = mockFunction(target, undefined, true)
+          // this ensures the proxy can be reused if accessed via an ancestor proxy
           proxyMap.set(fun, proxy)
           return (fun as any)[key]
         }
       }
-
-      const target = targetRedirects.get(initialTarget) ?? initialTarget
 
       if (key === reset) {
         return () => {
@@ -113,31 +106,30 @@ export function createProxy(initialObj: any) {
       return automock(newProp)
     },
 
-    set(initialTarget: any, key: string | symbol, newVal: any): boolean {
+    set(target: any, key: string | symbol, newVal: any): boolean {
       const isReturnsSpy = key === returnsSpy
 
       if (key === returns || isReturnsSpy) {
-        const retObj = functionSet.get(initialTarget)
-        if (!retObj) {
-          // console.log('create mock function')
-          if (isReturnsSpy) {
-            const fun = mockFunction(initialTarget, undefined, true)
-            ;(fun as any).mockReturnValue(newVal)
-            proxyMap.set(fun, proxy)
-          } else {
-            const fun = mockFunction(initialTarget, newVal, false)
-            proxyMap.set(fun, proxy)
-          }
-        } else {
+        const retObj = functionSet.get(target)
+        if (retObj) {
           // console.log('update mock function')
           if (isReturnsSpy) {
-            initialTarget[spy].mockReturnValue(newVal)
+            retObj[spy].mockReturnValue(newVal)
           } else {
             retObj.value = newVal
           }
+        } else {
+          // console.log('create mock function')
+          if (isReturnsSpy) {
+            const fun = mockFunction(target, undefined, true)
+            ;(fun as any).mockReturnValue(newVal)
+            proxyMap.set(fun, proxy)
+          } else {
+            const fun = mockFunction(target, newVal, false)
+            proxyMap.set(fun, proxy)
+          }
         }
       } else {
-        const target = targetRedirects.get(initialTarget) ?? initialTarget
         target[key] = newVal
       }
       return true
