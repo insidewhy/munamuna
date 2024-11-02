@@ -14,7 +14,8 @@
     "type-check": "pnpm tsc --noEmit",
     "test": "pnpm vitest",
     "validate": "pnpm lint-check && pnpm format-check && pnpm type-check && pnpm test run",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build",
+    "copy-dev-to-article": "prettier --prose-wrap never readme.md | wl-copy"
   },
   "repository": {
     "type": "git",

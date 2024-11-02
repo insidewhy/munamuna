@@ -9,9 +9,7 @@ Inspired by [python's MagicMock](https://docs.python.org/3/library/unittest.mock
 pnpm install -D vitest-automock
 ```
 
-## Tutorial
-
-### Example one
+## Motivating example
 
 Consider the following typical use of the `@octokit/rest` library which can append text to the body of a github issue:
 
@@ -72,18 +70,18 @@ it('can append to body of github ticket', async () => {
 })
 ```
 
-The type cast, which is necessary because the mock provides part of the implementation, also removes all type safety from the mock definition (which can be worked around at the cost of even more lines of code).
+The type cast, which is necessary because the mock provides part of the implementation, also removes all type safety from the mock definition.
+There are many ways to work around this with different trade-offs but each of them involve boiler plate which much be repeated at the site of every mock definition.
 
 With `vitest-automock` this becomes easier:
 
 ```typescript
 // index.spec.ts
-import { expect, it, vi } from 'vitest'
 import * as octokitRest from '@octokit/rest'
+import { expect, it, vi } from 'vitest'
+import { automock, returns, returnsSpy, spy } from 'vitest-automock'
 
 import { appendToIssueBody } from './index'
-
-const { automock, returns, returnsSpy, spy } = await vi.hoisted(() => import('vitest-automock'))
 
 vi.mock('@octokit/rest', () => ({}))
 
@@ -112,78 +110,11 @@ These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
 Again it's possible to work around this, at the cost of more code.
 `vitest-automock` creates `vi.fn` objects on demand whenever `returnsSpy` is used.
 
-### Example two
+## Tutorial
 
-The following toy example shows how easy it is to mock deeply nested data structures:
+### Mixing mock styles
 
-The library to mock:
-
-```typescript
-// lib.ts
-export class MuchNesting {
-  outer: {
-    inner: {
-      getStuff: (val: number) => {
-        deep: {
-          veryDeep: number
-          alsoVeryDeep: number
-        }
-      }
-    }
-  }
-
-  constructor() {
-    this.outer = {
-      inner: {
-        getStuff: (_val: number) => ({
-          deep: {
-            veryDeep: 420,
-            alsoVeryDeep: 421,
-          },
-        }),
-      },
-    }
-  }
-}
-```
-
-The module to test:
-
-```typescript
-// index.ts
-import { MuchNesting } from './lib'
-
-export function classWithMultipleDeeplyNestedObjects(): [number, number] {
-  const stuff = new MuchNesting().outer.inner.getStuff(12)
-  return [stuff.deep.veryDeep, stuff.deep.alsoVeryDeep]
-}
-```
-
-The test:
-
-```typescript
-// index.spec.ts
-import { beforeEach, expect, it, vi } from 'vitest'
-
-import { classWithMultipleDeeplyNestedObjects } from './index'
-import * as lib from './lib'
-
-const { automock, returns, returnsSpy, spy } = await vi.hoisted(() => import('vitest-automock'))
-
-vi.mock('./lib', () => ({}))
-
-it('can mock multiple nested properties within deeply nested function with a spy', () => {
-  const libMock = automock(lib)
-  const getStuff = libMock.MuchNesting[returns].outer.inner.getStuff[returnsSpy]
-  const { deep } = getStuff
-  deep.veryDeep = 16
-  deep.alsoVeryDeep = 17
-  expect(classWithMultipleDeeplyNestedObjects()).toEqual([16, 17])
-  expect(getStuff[spy]).toHaveBeenCalledWith(12)
-})
-```
-
-It's also possible to use a combination of object assignment and path assignment to modify and update mocks:
+It's possible to use a combination of object assignment and path assignment to modify and update mocks to allow the best syntax to be freely mixed depending on the case:
 
 ```typescript
 it('can use a mixture of assignments and paths to modify a mock', () => {
@@ -200,18 +131,61 @@ it('can use a mixture of assignments and paths to modify a mock', () => {
 })
 ```
 
+### Spying on functions
+
+This following example shows how to create a `vi.fn` easily:
+
+```typescript
+it('can spy on a function using [returnsSpy]', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  fun[returnsSpy] = 12
+  expect(mocked.fun()).toEqual(12)
+  expect(fun[spy]).toHaveBeenCalled()
+})
+```
+
+It should be noted that the `vi.fn()` is only created when `[returnsSpy]` is accessed, `vitest-automock` does not need to construct `vi.fn()` objects that are not explicitly requested.
+
+The following syntax can also be used:
+
+```typescript
+it('can spy on a top level function using mockReturnValue', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  const funSpy = fun.mockReturnValue(12)
+  expect(mocked.fun()).toEqual(12)
+  expect(funSpy).toHaveBeenCalled()
+})
+```
+
+Here also the `vi.fn` is created lazily when `mockReturnValue` is accessed.
+
+`mockReturnValueOnce` can also be used:
+
+```typescript
+it('can spy on a top level function using mockReturnValueOnce', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  const funSpy = fun.mockReturnValueOnce(12)
+  fun.mockReturnValueOnce(13)
+
+  expect(mocked.fun()).toEqual(12)
+  expect(funSpy).toHaveBeenCalled()
+  expect(mocked.fun()).toEqual(13)
+  expect(funSpy).toHaveBeenCalledTimes(2)
+})
+```
+
 ### Resetting mocks
 
-To ensure interactions between tests don't cause issues a mock created with `vitest-automock` can be reset:
+A mock created with `vitest-automock` can be reset to ensure interactions between tests don't cause issues:
 
 ```typescript
 import { beforeEach, expect, it, vi } from 'vitest'
+import { automock, reset, returns } from 'vitest-automock'
 
 import * as lib from './lib'
-
-const { automock, reset, returns, returnsSpy, spy } = await vi.hoisted(
-  () => import('vitest-automock'),
-)
 
 vi.mock('./lib', () => ({}))
 

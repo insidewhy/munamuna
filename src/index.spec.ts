@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { automock, reset, returns, returnsSpy, spy } from './index'
 import * as lib from './testing/lib'
 
 import {
@@ -8,8 +9,6 @@ import {
   functionReturningNumber,
   functionReturningNestedNumber,
 } from './testing/main'
-
-const { automock, reset, returns, returnsSpy, spy } = await vi.hoisted(() => import('./index'))
 
 vi.mock('./testing/lib', () => ({}))
 
@@ -305,6 +304,34 @@ it('can use the previous proxy reference to access a function spy set with a pat
   expect(fun[spy]).toHaveBeenCalled()
   expect(mock.fun[returnsSpy][spy]).toHaveBeenCalled()
   expect(mock.fun[spy]).toHaveBeenCalled()
+})
+
+it('can spy on a top level function using [returnsSpy]', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  fun[returnsSpy] = 12
+  expect(mocked.fun()).toEqual(12)
+  expect(fun[spy]).toHaveBeenCalled()
+})
+
+it('can spy on a top level function using mockReturnValue', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  const funSpy = fun.mockReturnValue(12)
+  expect(mocked.fun()).toEqual(12)
+  expect(funSpy).toHaveBeenCalled()
+})
+
+it('can spy on a top level function using mockReturnValueOnce', () => {
+  const mocked = {} as { fun: () => number }
+  const { fun } = automock(mocked)
+  const funSpy = fun.mockReturnValueOnce(12)
+  fun.mockReturnValueOnce(13)
+
+  expect(mocked.fun()).toEqual(12)
+  expect(funSpy).toHaveBeenCalled()
+  expect(mocked.fun()).toEqual(13)
+  expect(funSpy).toHaveBeenCalledTimes(2)
 })
 
 it('can spy on a top level function with a return path', () => {
