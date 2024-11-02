@@ -1,16 +1,32 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface Spy {
+  mockReturnValue<T>(value: T): Spy
+  mockReturnValueOnce<T>(value: T): Spy
+  mockResolvedValue<T>(value: T): Spy
+  mockResolvedValueOnce<T>(value: T): Spy
+  mockRejectedValue<T>(value: T): Spy
+  mockRejectedValueOnce<T>(value: T): Spy
+  mockImplementation<T>(impl: (...args: any[]) => T): Spy
+  mockImplementationOnce<T>(impl: (...args: any[]) => T): Spy
+}
+
+const spyMethods = new Set([
+  'mockReturnValue',
+  'mockReturnValueOnce',
+  'mockResolvedValue',
+  'mockResolvedValueOnce',
+  'mockRejectedValue',
+  'mockRejectedValueOnce',
+  'mockImplementation',
+  'mockImplementationOnce',
+])
+
 export const returns = Symbol('returns')
 export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 export const set = Symbol('set')
 export const reset = Symbol('reset')
 export const reattach = Symbol('reattach')
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-interface Spy {
-  mockReturnValueOnce<T>(value: T): void
-  mockReturnValue<T>(value: T): void
-}
 
 type SpyFunction = (option?: any) => Spy
 
@@ -91,7 +107,7 @@ export function createProxy(obj: any) {
         return functionSet.get(target)?.[spy] ?? mockFunction(proxy, target, undefined, true)
       }
 
-      if (key === 'mockReturnValue' || key === 'mockReturnValueOnce') {
+      if (spyMethods.has(key as string)) {
         const retObj = functionSet.get(target)
         if (retObj) {
           // console.log('reuse mock function')

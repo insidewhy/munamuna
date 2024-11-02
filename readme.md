@@ -212,8 +212,6 @@ it('can spy on a top level function using mockReturnValue', () => {
 
 Here also the spy is created lazily when `mockReturnValue` is accessed.
 
-`mockReturnValueOnce` can also be used:
-
 ```typescript
 it('can spy on a top level function using mockReturnValueOnce', () => {
   const mocked = {} as { fun: () => number }
@@ -244,6 +242,15 @@ it('can spy on a function with a return path', () => {
 
 In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]`, either can be useful depending on the context.
 From the above examples it may be noticed that the latter leads to shorter code when `automock` is used to build a return path and the former leads to shorter code in all other cases.
+
+The following spy methods are also supported:
+
+- `mockResolvedValue`
+- `mockResolvedValueOnce`
+- `mockRejectedValue`
+- `mockRejectedValueOnce`
+- `mockImplementation`
+- `mockImplementationOnce`
 
 ### Resetting mocks
 
