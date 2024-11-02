@@ -17,14 +17,14 @@ Consider the following typical use of the `@octokit/rest` library which can appe
 // index.ts
 import { Octokit } from '@octokit/rest'
 
-interface IssueDetails {
+export interface IssueDetails {
   owner: string
   repo: string
   issue_number: number
   body?: string
 }
 
-function appendToIssueBody(req: IssueDetails, toAppend: string): string {
+export function appendToIssueBody(req: IssueDetails, toAppend: string): string {
   const client = new Octokit({ auth: 'auth token' })
   const issue = await client.issues.get({ owner, repo, issue_number })
   await client.issues.update({
@@ -142,7 +142,7 @@ it('can create multiple nested paths with path assignment', () => {
 It's possible to use a combination of object assignment and path assignment to modify and update mocks to allow the best syntax to be freely mixed depending on the case:
 
 ```typescript
-it('can use a mixture of assignments and paths to modify a mock', () => {
+it('can use an assignment followed by a path assignment', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
   const mock = automock(mocked)
@@ -305,10 +305,39 @@ it('can use destructuring syntax with [set] to alter multiple paths', () => {
 })
 ```
 
-Using `[set]` with a non-object value followed by a path expression will not work as the first call to `[set]` will detach the internal object reference from the tree:
+### Gotchas
+
+Setting a non-object value then using a pre-existing path assignment will not work as the assignment of the primitive value will detach the object used by the pre-existing proxy from the mocked object graph.
 
 ```typescript
-it('cannot use [set] to create a primitive value then use a path expression after', () => {
+it('cannot assign a primitive value then use a path assignment from a pre-existing reference after', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  const { value } = mock
+  mock.value = 6
+  expect(mocked).toEqual({ value: 6 })
+  value.inner = 5
+  expect(mocked).not.toEqual({ value: { inner: 5 } })
+})
+```
+
+This can be worked around by grabbing a new reference and assigning the object to that:
+
+```typescript
+it('can assign a primitive value then use a path assignment from a new reference after', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  mock.value = 6
+  expect(mocked).toEqual({ value: 6 })
+  mock.value.inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
+```
+
+The same limitation and work-around apply when using `[set]`:
+
+```typescript
+it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
   const mocked = {} as { value: { inner: number } | number }
   const { value } = automock(mocked)
   value[set] = 6
@@ -316,12 +345,35 @@ it('cannot use [set] to create a primitive value then use a path expression afte
   value.inner = 5
   expect(mocked).not.toEqual({ value: { inner: 5 } })
 })
+
+it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  const { value } = mock
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
+  mock.value.inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
 ```
 
-However things work as expected when using `[set]` to assign or overwrite an object:
+This limitation does not apply when assigning objects:
 
 ```typescript
-it('can use [set] to overwrite an object then alter it with a path expression', () => {
+it('can use an object assignment followed by a path assignment from a pre-existing reference', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = automock(mocked)
+  const { obj } = mock
+  mock.obj = { top: 2, nested: { inside: 3 } }
+  expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
+
+  obj.nested.also = 16
+  obj.alsoTop = 4
+  expect(mocked).toEqual({ obj: { alsoTop: 4, top: 2, nested: { inside: 3, also: 16 } } })
+})
+
+it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
   const mocked = {} as { value: { first: number; second?: number } }
   const { value } = automock(mocked)
 
@@ -336,7 +388,7 @@ it('can use [set] to overwrite an object then alter it with a path expression', 
 })
 ```
 
-Multiple direct assignments of primitive values using `[set]` also works:
+Multiple direct assignments of primitive values work fine:
 
 ```typescript
 it('can use [set] to alter the existing object multiple times', () => {

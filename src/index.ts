@@ -134,7 +134,7 @@ export function createProxy(obj: any) {
           }
         }
       } else if (key === set) {
-        if (typeof newVal === 'object') {
+        if (typeof newVal === 'object' && typeof target === 'object') {
           // avoid detaching the original target from its proxy
           for (const prop of Object.getOwnPropertyNames(target)) {
             delete target[prop]
@@ -148,7 +148,15 @@ export function createProxy(obj: any) {
           meta.parent[meta.key] = newVal
         }
       } else {
-        target[key] = newVal
+        let assignObj: any
+        if (typeof newVal === 'object' && typeof (assignObj = target[key]) === 'object') {
+          for (const prop of Object.getOwnPropertyNames(assignObj)) {
+            delete target[prop]
+          }
+          Object.assign(assignObj, newVal)
+        } else {
+          target[key] = newVal
+        }
       }
       return true
     },

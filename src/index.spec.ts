@@ -358,14 +358,14 @@ it('can spy on a function with a return path', () => {
   expect(fun[spy]).toHaveBeenCalled()
 })
 
-it('can use a mixture of assignments and paths to modify a mock', () => {
+it('can use an object assignment followed by a path assignment from a pre-existing reference', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
   const mock = automock(mocked)
+  const { obj } = mock
   mock.obj = { top: 2, nested: { inside: 3 } }
   expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
 
-  const { obj } = mock
   obj.nested.also = 16
   obj.alsoTop = 4
   expect(mocked).toEqual({ obj: { alsoTop: 4, top: 2, nested: { inside: 3, also: 16 } } })
@@ -416,6 +416,25 @@ it('cannot alter a value by assigning directly to it', () => {
   expect(mocked).not.toEqual({ value: 5 })
 })
 
+it('cannot assign a primitive value then use a path assignment from a pre-existing reference after', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  const { value } = mock
+  mock.value = 6
+  expect(mocked).toEqual({ value: 6 })
+  value.inner = 5
+  expect(mocked).not.toEqual({ value: { inner: 5 } })
+})
+
+it('can assign a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  mock.value = 6
+  expect(mocked).toEqual({ value: 6 })
+  mock.value.inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
+
 it('can use [set] to alter the existing target', () => {
   const mocked = {} as { value: number }
   const { value } = automock(mocked)
@@ -445,7 +464,7 @@ it('cannot use [set] to alter an existing object using a path', () => {
   expect(mocked).toEqual({ value: { inner: 5 } })
 })
 
-it('cannot use [set] to create a primitive value then use a path expression after', () => {
+it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
   const mocked = {} as { value: { inner: number } | number }
   const { value } = automock(mocked)
   value[set] = 6
@@ -454,10 +473,22 @@ it('cannot use [set] to create a primitive value then use a path expression afte
   expect(mocked).not.toEqual({ value: { inner: 5 } })
 })
 
-it('can use [set] to overwrite an object then alter it with a path expression', () => {
+it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { value: { inner: number } | number }
+  const mock = automock(mocked)
+  const { value } = mock
+  value[set] = 6
+  expect(mocked).toEqual({ value: 6 })
+  mock.value.inner = 5
+  expect(mocked).toEqual({ value: { inner: 5 } })
+})
+
+it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
   const mocked = {} as { value: { first: number; second?: number } }
   const { value } = automock(mocked)
 
+  // this doesn't affect whether the test passes but shows that `[set]` can be used to
+  // remove existing properties
   value.second = 12
   value[set] = { first: 5 }
   expect(mocked).toEqual({ value: { first: 5 } })
@@ -466,7 +497,7 @@ it('can use [set] to overwrite an object then alter it with a path expression', 
   expect(mocked).toEqual({ value: { first: 5, second: 292 } })
 })
 
-it('can use [set] to alter the existing object multiple times', () => {
+it('can use [set] to alter a property multiple times', () => {
   const mocked = {} as { value: number }
   const { value } = automock(mocked)
   value[set] = 5
