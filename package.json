@@ -1,12 +1,13 @@
 {
   "name": "munamuna",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build mocks and spies so much more easily",
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "type": "module",
   "packageManager": "pnpm@9.11.0",
   "scripts": {
-    "build": "esbuild --bundle --platform=node --format=esm src/index.ts --outfile=lib/index.js",
+    "build": "esbuild --bundle --platform=node --format=esm src/index.ts --outfile=lib/index.js && tsc --declaration --emitDeclarationOnly src/index.ts --outDir lib",
     "lint-check": "eslint src/*.ts",
     "lint": "pnpm lint-check --fix",
     "format-check": "prettier --check .",
