@@ -257,7 +257,7 @@ it('can spy on a function and set the return value with a path expression via a 
 ```
 
 This syntax cannot be used when setting a primitive value, e.g. `fun() = 12`, for this the `fun[returnsSpy] = 12` syntax works.
-The `tsc` and `eslint` will both indicate an error if an attempt to use the former syntax is used as in ecmascript the left hand side of an assignment expression must be a variable or a property access.
+`tsc` and `eslint` will both indicate an error if an attempt to use the former syntax is used as in ecmascript the left hand side of an assignment expression must be a variable or a property access.
 
 In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]` or `mocked.fun()`, both can be useful depending on the context.
 
@@ -395,7 +395,7 @@ it('cannot alter a value by assigning directly to it', () => {
 ```
 
 Here `value` is a proxy, assigning to it will overwrite the reference to the proxy rather than set a value at the intended path.
-This issue can be noticed/avoided by using `const` for all variable definitions assigned from an munamuna or setting up a lint tool to check for unused variables.
+This issue can be noticed/avoided by using `const` for all variable definitions assigned from a `munamuna` or setting up a lint tool to check for unused variables.
 To have this work as intended `munamuna(mocked).value = 5` could be used, but this notation is not always convenient.
 
 An alternative way is shown below:
@@ -545,4 +545,11 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 
 ## Plans
 
-- Finish autocomplete support for first release
+### Version 1.0
+
+- Ensure arrays are handled as expected
+- Finish autocomplete support
+
+### Version 1.1
+
+- For spies that should return values depending on their arguments, provide a way to construct the return values easily using the function call syntax.
