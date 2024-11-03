@@ -37,7 +37,7 @@ const metaMap = new WeakMap<any, any>()
 // function against return object container
 const functionSet = new WeakMap<any, any>()
 
-function mockFunction(proxy: any, obj: any, value: any, isReturnsSpy: boolean) {
+function mockFunction(proxy: ProxyConstructor, obj: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(obj)
   if (!meta) {
     throw new Error('Cannot create a function on a top-level munamuna')
@@ -68,26 +68,26 @@ function mockFunction(proxy: any, obj: any, value: any, isReturnsSpy: boolean) {
   return fun
 }
 
-const getTraps: { [index: symbol | string]: (obj: any, proxy: any) => any } = {
-  [returns](obj: any, proxy: any) {
+const getTraps: { [index: symbol | string]: (obj: any, proxy: ProxyConstructor) => any } = {
+  [returns](obj: any, proxy: ProxyConstructor) {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, false)
     }
     return proxy
   },
 
-  [returnsSpy](obj: any, proxy: any) {
+  [returnsSpy](obj: any, proxy: ProxyConstructor) {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, true)
     }
     return proxy
   },
 
-  [spy](obj: any, proxy: any) {
+  [spy](obj: any, proxy: ProxyConstructor) {
     return functionSet.get(obj)?.[spy] ?? mockFunction(proxy, obj, undefined, true)
   },
 
-  [set](_: any, proxy: any) {
+  [set](_: any, proxy: ProxyConstructor) {
     return proxy
   },
 
@@ -116,7 +116,7 @@ const getTraps: { [index: symbol | string]: (obj: any, proxy: any) => any } = {
 }
 
 for (const key of spyMethods) {
-  getTraps[key] = (obj: any, proxy: any) => {
+  getTraps[key] = (obj: any, proxy: ProxyConstructor) => {
     const retObj = functionSet.get(obj)
     if (retObj) {
       return retObj[spy][key]
@@ -127,8 +127,8 @@ for (const key of spyMethods) {
   }
 }
 
-const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } = {
-  [returns](obj: any, newVal: any, proxy: any) {
+const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: ProxyConstructor) => any } = {
+  [returns](obj: any, newVal: any, proxy: ProxyConstructor) {
     const retObj = functionSet.get(obj)
     if (retObj) {
       retObj.value = newVal
@@ -137,7 +137,7 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } 
     }
   },
 
-  [returnsSpy](obj: any, newVal: any, proxy: any) {
+  [returnsSpy](obj: any, newVal: any, proxy: ProxyConstructor) {
     const retObj = functionSet.get(obj)
     if (retObj) {
       retObj[spy].mockReturnValue(newVal)
@@ -164,60 +164,68 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } 
   },
 }
 
-// all proxies wrap this same dummy function, this allows intercepting calls to
-// apply
-function dummyFunction() {}
+interface ProxyTarget {
+  obj: any
+  proxy: ProxyConstructor
 
-export function createProxy(obj: any) {
-  const proxy: ProxyConstructor = new Proxy(dummyFunction, {
-    get(_: any, key: string | symbol) {
-      const trap = getTraps[key]
-      if (trap) {
-        return trap(obj, proxy)
+  (): void
+}
+
+const proxyHandler: ProxyHandler<ProxyTarget> = {
+  get({ obj, proxy }: any, key: string | symbol) {
+    const trap = getTraps[key]
+    if (trap) {
+      return trap(obj, proxy)
+    }
+
+    try {
+      const existing = obj[key]
+      if (existing) {
+        return munamuna(existing)
       }
+    } catch {
+      // vitest does something to the module that prevents checking if things exist
+    }
 
-      try {
-        const existing = obj[key]
-        if (existing) {
-          return munamuna(existing)
+    const newProp: any = {}
+    metaMap.set(newProp, { parent: obj, key })
+    obj[key] = newProp
+    return munamuna(newProp)
+  },
+
+  set({ obj, proxy }: any, key: string | symbol, newVal: any): boolean {
+    const trap = setTraps[key as symbol]
+    if (trap) {
+      trap(obj, newVal, proxy)
+    } else {
+      let assignObj: any
+      if (typeof newVal === 'object' && typeof (assignObj = obj[key]) === 'object') {
+        for (const prop of Object.getOwnPropertyNames(assignObj)) {
+          delete obj[prop]
         }
-      } catch {
-        // vitest does something to the module that prevents checking if things exist
-      }
-
-      const newProp: any = {}
-      metaMap.set(newProp, { parent: obj, key })
-      obj[key] = newProp
-      return munamuna(newProp)
-    },
-
-    set(_: any, key: string | symbol, newVal: any): boolean {
-      const trap = setTraps[key as symbol]
-      if (trap) {
-        trap(obj, newVal, proxy)
+        Object.assign(assignObj, newVal)
       } else {
-        let assignObj: any
-        if (typeof newVal === 'object' && typeof (assignObj = obj[key]) === 'object') {
-          for (const prop of Object.getOwnPropertyNames(assignObj)) {
-            delete obj[prop]
-          }
-          Object.assign(assignObj, newVal)
-        } else {
-          obj[key] = newVal
-        }
+        obj[key] = newVal
       }
+    }
 
-      return true
-    },
+    return true
+  },
 
-    apply() {
-      if (!functionSet.has(obj)) {
-        mockFunction(proxy, obj, undefined, true)
-      }
-      return proxy
-    },
-  })
+  apply({ obj, proxy }: any) {
+    if (!functionSet.has(obj)) {
+      mockFunction(proxy, obj, undefined, true)
+    }
+    return proxy
+  },
+}
 
+export function createProxy(obj: any): ProxyConstructor {
+  // the proxy has to be a function or the apply trap cannot work
+  const dummyFunction: ProxyTarget = () => {}
+  dummyFunction.obj = obj
+  const proxy: any = new Proxy(dummyFunction, proxyHandler)
+  dummyFunction.proxy = proxy
   return proxy
 }
 
