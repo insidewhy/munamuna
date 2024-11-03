@@ -92,7 +92,7 @@ vi.mock('@octokit/rest', () => ({}))
 
 it('can append to body of github ticket', async () => {
   const { issues } = munamuna(octokitRest).Octokit[returns]
-  issues.get[returnsSpy].data.body = 'some text'
+  issues.get().data.body = 'some text'
   const update = issues.update[spy]
 
   await appendToIssueBody({ owner: 'son', repo: 'me', issue_number: 15 }, 'appended')
@@ -106,8 +106,8 @@ Values returned from mock are also type checked according to the structure of th
 
 This test shows how to mock functions:
 
-- `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
-- `returnsSpy` works the same but creates a spy function (e.g. `vi.fn`)
+- `returns` can be used to mock function or constructor return values without creating a spy.
+- function calls creates a spy function (e.g. `vi.fn`).
 - `spy` can be used to access a spy created by `munamuna` and it will create the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that may never be needed.
@@ -230,7 +230,7 @@ it('can spy on a top level function using mockReturnValueOnce', () => {
 When mocking a function that returns a nested structure it's generally easier to use the `[returnsSpy]` version:
 
 ```typescript
-it('can spy on a function with a return path', () => {
+it('can spy on a function and set the return value with a path expression via [returnsSpy]', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
   const mock = munamuna(mocked)
   const fun = mock.fun[returnsSpy]
@@ -240,8 +240,23 @@ it('can spy on a function with a return path', () => {
 })
 ```
 
-In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]`, either can be useful depending on the context.
-From the above examples it may be noticed that the latter leads to shorter code when `munamuna` is used to build a return path and the former leads to shorter code in all other cases.
+A function call syntax can also be used instead of `[returnsSpy]`:
+
+```typescript
+it('can spy on a function and set the return value with a path expression via a function call', () => {
+  const mocked = {} as { fun: () => { outer: { inner: number } } }
+  const mock = munamuna(mocked)
+  const { fun } = mock
+  fun().outer.inner = 12
+  expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
+  expect(fun[spy]).toHaveBeenCalled()
+})
+```
+
+This syntax cannot be used when setting a primitive value, e.g. `fun() = 12`, for this the `fun[returnsSpy] = 12` syntax works.
+The `tsc` and `eslint` will both indicate an error if an attempt to use the former syntax is used as in ecmascript the left hand side of an assignment expression must be a variable or a property access.
+
+In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]` or `mocked.fun()`, both can be useful depending on the context.
 
 The following spy methods are also supported:
 

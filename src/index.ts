@@ -37,27 +37,27 @@ const metaMap = new WeakMap<any, any>()
 // function against return object container
 const functionSet = new WeakMap<any, any>()
 
-function resetMocks(target: any) {
-  for (const prop of Object.getOwnPropertyNames(target)) {
-    delete target[prop]
+function resetMocks(obj: any) {
+  for (const prop of Object.getOwnPropertyNames(obj)) {
+    delete obj[prop]
   }
 
-  const meta = metaMap.get(target)
+  const meta = metaMap.get(obj)
   if (meta) {
     delete meta.parent[meta.key]
   }
 }
 
-function reattachProxy(target: any) {
-  const meta = metaMap.get(target)
+function reattachProxy(obj: any) {
+  const meta = metaMap.get(obj)
   if (!meta) {
     throw new Error('Cannot reattach a top level proxy')
   }
-  meta.parent[meta.key] = target
+  meta.parent[meta.key] = obj
 }
 
-function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean) {
-  const meta = metaMap.get(target)
+function mockFunction(proxy: any, obj: any, value: any, isReturnsSpy: boolean) {
+  const meta = metaMap.get(obj)
   if (!meta) {
     throw new Error('Cannot create a function on a top-level munamuna')
   }
@@ -65,7 +65,7 @@ function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean
   const prevTarget = meta.parent[meta.key]
 
   // if there is a value then create a new object to host this value, allowing the value
-  // to be altered via `retObj.value = blah` otherwise set the value to the previous target
+  // to be altered via `retObj.value = blah` otherwise set the value to the previous object
   // so that path options on the original proxy can update the returned value
   const retObj: any = value === undefined ? { value: prevTarget } : { value }
 
@@ -87,83 +87,83 @@ function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean
   return fun
 }
 
-const getTraps: { [index: symbol | string]: (target: any, proxy: any) => any } = {
-  [returns](target: any, proxy: any) {
-    if (!functionSet.has(target)) {
-      mockFunction(proxy, target, undefined, false)
+const getTraps: { [index: symbol | string]: (obj: any, proxy: any) => any } = {
+  [returns](obj: any, proxy: any) {
+    if (!functionSet.has(obj)) {
+      mockFunction(proxy, obj, undefined, false)
     }
     return proxy
   },
 
-  [returnsSpy](target: any, proxy: any) {
-    if (!functionSet.has(target)) {
-      mockFunction(proxy, target, undefined, true)
+  [returnsSpy](obj: any, proxy: any) {
+    if (!functionSet.has(obj)) {
+      mockFunction(proxy, obj, undefined, true)
     }
     return proxy
   },
 
-  [spy](target: any, proxy: any) {
-    return functionSet.get(target)?.[spy] ?? mockFunction(proxy, target, undefined, true)
+  [spy](obj: any, proxy: any) {
+    return functionSet.get(obj)?.[spy] ?? mockFunction(proxy, obj, undefined, true)
   },
 
   [set](_: any, proxy: any) {
     return proxy
   },
 
-  [reset](target: any) {
+  [reset](obj: any) {
     return () => {
-      resetMocks(target)
+      resetMocks(obj)
     }
   },
 
-  [reattach](target: any) {
+  [reattach](obj: any) {
     return () => {
-      reattachProxy(target)
+      reattachProxy(obj)
     }
   },
 }
 
 for (const key of spyMethods) {
-  getTraps[key] = (target: any, proxy: any) => {
-    const retObj = functionSet.get(target)
+  getTraps[key] = (obj: any, proxy: any) => {
+    const retObj = functionSet.get(obj)
     if (retObj) {
       return retObj[spy][key]
     } else {
-      const fun = mockFunction(proxy, target, undefined, true)
+      const fun = mockFunction(proxy, obj, undefined, true)
       return (fun as any)[key]
     }
   }
 }
 
-const setTraps: { [index: symbol]: (target: any, newVal: any, proxy: any) => any } = {
-  [returns](target: any, newVal: any, proxy: any) {
-    const retObj = functionSet.get(target)
+const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } = {
+  [returns](obj: any, newVal: any, proxy: any) {
+    const retObj = functionSet.get(obj)
     if (retObj) {
       retObj.value = newVal
     } else {
-      mockFunction(proxy, target, newVal, false)
+      mockFunction(proxy, obj, newVal, false)
     }
   },
 
-  [returnsSpy](target: any, newVal: any, proxy: any) {
-    const retObj = functionSet.get(target)
+  [returnsSpy](obj: any, newVal: any, proxy: any) {
+    const retObj = functionSet.get(obj)
     if (retObj) {
       retObj[spy].mockReturnValue(newVal)
     } else {
-      const fun = mockFunction(proxy, target, undefined, true)
+      const fun = mockFunction(proxy, obj, undefined, true)
       ;(fun as any).mockReturnValue(newVal)
     }
   },
 
-  [set](target: any, newVal: any) {
-    if (typeof newVal === 'object' && typeof target === 'object') {
-      // avoid detaching the original target from its proxy
-      for (const prop of Object.getOwnPropertyNames(target)) {
-        delete target[prop]
+  [set](obj: any, newVal: any) {
+    if (typeof newVal === 'object' && typeof obj === 'object') {
+      // avoid detaching the original obj from its proxy
+      for (const prop of Object.getOwnPropertyNames(obj)) {
+        delete obj[prop]
       }
-      Object.assign(target, newVal)
+      Object.assign(obj, newVal)
     } else {
-      const meta = metaMap.get(target)
+      const meta = metaMap.get(obj)
       if (!meta) {
         throw new Error('Cannot use [set] on a top-level munamuna')
       }
@@ -172,16 +172,20 @@ const setTraps: { [index: symbol]: (target: any, newVal: any, proxy: any) => any
   },
 }
 
+// all proxies wrap this same dummy function, this allows intercepting calls to
+// apply
+function dummyFunction() {}
+
 export function createProxy(obj: any) {
-  const proxy = new Proxy(obj, {
-    get(target: any, key: string | symbol) {
+  const proxy: ProxyConstructor = new Proxy(dummyFunction, {
+    get(_: any, key: string | symbol) {
       const trap = getTraps[key]
       if (trap) {
-        return trap(target, proxy)
+        return trap(obj, proxy)
       }
 
       try {
-        const existing = target[key]
+        const existing = obj[key]
         if (existing) {
           return munamuna(existing)
         }
@@ -190,28 +194,35 @@ export function createProxy(obj: any) {
       }
 
       const newProp: any = {}
-      metaMap.set(newProp, { parent: target, key })
-      target[key] = newProp
+      metaMap.set(newProp, { parent: obj, key })
+      obj[key] = newProp
       return munamuna(newProp)
     },
 
-    set(target: any, key: string | symbol, newVal: any): boolean {
+    set(_: any, key: string | symbol, newVal: any): boolean {
       const trap = setTraps[key as symbol]
       if (trap) {
-        trap(target, newVal, proxy)
+        trap(obj, newVal, proxy)
       } else {
         let assignObj: any
-        if (typeof newVal === 'object' && typeof (assignObj = target[key]) === 'object') {
+        if (typeof newVal === 'object' && typeof (assignObj = obj[key]) === 'object') {
           for (const prop of Object.getOwnPropertyNames(assignObj)) {
-            delete target[prop]
+            delete obj[prop]
           }
           Object.assign(assignObj, newVal)
         } else {
-          target[key] = newVal
+          obj[key] = newVal
         }
       }
 
       return true
+    },
+
+    apply() {
+      if (!functionSet.has(obj)) {
+        mockFunction(proxy, obj, undefined, true)
+      }
+      return proxy
     },
   })
 

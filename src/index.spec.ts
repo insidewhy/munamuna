@@ -141,7 +141,7 @@ describe('when used to mock module via vi.mock', () => {
     expect(functionReturningNestedNumber().nested).toEqual(12)
   })
 
-  it('can mock the return of a nested function twice through new references', () => {
+  it('can mock the return of a nested function twice via [returnsSpy] with new references', () => {
     const fun1 = libMock.returnNestedNumber[returnsSpy]
     fun1.nested = 12
     expect(functionReturningNestedNumber().nested).toEqual(12)
@@ -153,8 +153,31 @@ describe('when used to mock module via vi.mock', () => {
     expect(fun2[spy]).toHaveBeenCalledTimes(2)
   })
 
-  it('can mock the return of a nested function twice through the original reference', () => {
+  it('can mock the return of a nested function twice via [returnsSpy] with the original reference', () => {
     const fun = libMock.returnNestedNumber[returnsSpy]
+    fun.nested = 94
+    expect(functionReturningNestedNumber().nested).toEqual(94)
+    expect(fun[spy]).toHaveBeenCalledOnce()
+
+    fun.nested = 95
+    expect(functionReturningNestedNumber().nested).toEqual(95)
+    expect(fun[spy]).toHaveBeenCalledTimes(2)
+  })
+
+  it('can mock the return of a nested function twice via call syntax with new references', () => {
+    const fun1 = libMock.returnNestedNumber()
+    fun1.nested = 12
+    expect(functionReturningNestedNumber().nested).toEqual(12)
+    expect(fun1[spy]).toHaveBeenCalledOnce()
+
+    const fun2 = libMock.returnNestedNumber()
+    fun2.nested = 13
+    expect(functionReturningNestedNumber().nested).toEqual(13)
+    expect(fun2[spy]).toHaveBeenCalledTimes(2)
+  })
+
+  it('can mock the return of a nested function twice via call syntax with the original reference', () => {
+    const fun = libMock.returnNestedNumber()
     fun.nested = 94
     expect(functionReturningNestedNumber().nested).toEqual(94)
     expect(fun[spy]).toHaveBeenCalledOnce()
@@ -179,8 +202,30 @@ describe('when used to mock module via vi.mock', () => {
     expect(fun[returnsSpy][spy]).toHaveBeenCalledTimes(2)
   })
 
-  it('can mock nested properties within deeply nested function with a spy', () => {
+  it('can mock the return of a nested function twice with a reference above the call', () => {
+    const fun = libMock.returnNestedNumber
+    fun().nested = 202
+    expect(functionReturningNestedNumber().nested).toEqual(202)
+    // these are equivalent
+    expect(fun[spy]).toHaveBeenCalledOnce()
+    expect(fun()[spy]).toHaveBeenCalledOnce()
+
+    fun().nested = 203
+    expect(functionReturningNestedNumber().nested).toEqual(203)
+    // these are equivalent
+    expect(fun[spy]).toHaveBeenCalledTimes(2)
+    expect(fun()[spy]).toHaveBeenCalledTimes(2)
+  })
+
+  it('can mock nested properties within deeply nested function with a spy via [returnsSpy]', () => {
     const getStuff = libMock.DeeplyNestedObjects[returns].outer.inner.getStuff[returnsSpy]
+    getStuff.deep.veryDeep = 16
+    expect(classWithDeeplyNestedObjects()).toEqual(16)
+    expect(getStuff[spy]).toHaveBeenCalledWith(12)
+  })
+
+  it('can mock nested properties within deeply nested function with a spy via call syntax', () => {
+    const getStuff = libMock.DeeplyNestedObjects[returns].outer.inner.getStuff()
     getStuff.deep.veryDeep = 16
     expect(classWithDeeplyNestedObjects()).toEqual(16)
     expect(getStuff[spy]).toHaveBeenCalledWith(12)
@@ -306,7 +351,7 @@ it('can use the previous proxy to manipulate a function spy set with a value', (
   // expect(fun[spy]).toHaveBeenCalledTimes(2) // wrong
 })
 
-it('can use the previous proxy reference to access a function spy set with a path', () => {
+it('can use the previous proxy reference to access a function spy via [returnsSpy] set with a path', () => {
   const mocked = {} as { fun: () => { inner: number } }
   const mock = munamuna(mocked)
 
@@ -318,6 +363,21 @@ it('can use the previous proxy reference to access a function spy set with a pat
   expect(fun[returnsSpy][spy]).toHaveBeenCalled()
   expect(fun[spy]).toHaveBeenCalled()
   expect(mock.fun[returnsSpy][spy]).toHaveBeenCalled()
+  expect(mock.fun[spy]).toHaveBeenCalled()
+})
+
+it('can use the previous proxy reference to access a function spy via call syntax set with a path', () => {
+  const mocked = {} as { fun: () => { inner: number } }
+  const mock = munamuna(mocked)
+
+  const { fun } = mock
+  fun().inner = 24
+  expect(mocked.fun()).toEqual({ inner: 24 })
+
+  // these are all equivalent
+  expect(fun()[spy]).toHaveBeenCalled()
+  expect(fun[spy]).toHaveBeenCalled()
+  expect(mock.fun()[spy]).toHaveBeenCalled()
   expect(mock.fun[spy]).toHaveBeenCalled()
 })
 
@@ -349,11 +409,20 @@ it('can spy on a function using mockReturnValueOnce', () => {
   expect(fun[spy]).toHaveBeenCalledTimes(2)
 })
 
-it('can spy on a function with a return path using [returnsSpy]', () => {
+it('can spy on a function and set the return value with a path expression via [returnsSpy]', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
   const mock = munamuna(mocked)
   const fun = mock.fun[returnsSpy]
   fun.outer.inner = 12
+  expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
+  expect(fun[spy]).toHaveBeenCalled()
+})
+
+it('can spy on a function and set the return value with a path expression via a function call', () => {
+  const mocked = {} as { fun: () => { outer: { inner: number } } }
+  const mock = munamuna(mocked)
+  const { fun } = mock
+  fun().outer.inner = 12
   expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
   expect(fun[spy]).toHaveBeenCalled()
 })
