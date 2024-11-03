@@ -59,7 +59,7 @@ function reattachProxy(target: any) {
 function mockFunction(proxy: any, target: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(target)
   if (!meta) {
-    throw new Error('Cannot create a function on a top-level automock')
+    throw new Error('Cannot create a function on a top-level munamuna')
   }
 
   const prevTarget = meta.parent[meta.key]
@@ -138,7 +138,7 @@ export function createProxy(obj: any) {
       try {
         const existing = target[key]
         if (existing) {
-          return automock(existing)
+          return munamuna(existing)
         }
       } catch {
         // vitest does something to the module that prevents checking if things exist
@@ -147,7 +147,7 @@ export function createProxy(obj: any) {
       const newProp: any = {}
       metaMap.set(newProp, { parent: target, key })
       target[key] = newProp
-      return automock(newProp)
+      return munamuna(newProp)
     },
 
     set(target: any, key: string | symbol, newVal: any): boolean {
@@ -181,7 +181,7 @@ export function createProxy(obj: any) {
         } else {
           const meta = metaMap.get(target)
           if (!meta) {
-            throw new Error('Cannot use [set] on a top-level automock')
+            throw new Error('Cannot use [set] on a top-level munamuna')
           }
           meta.parent[meta.key] = newVal
         }
@@ -203,7 +203,7 @@ export function createProxy(obj: any) {
   return proxy
 }
 
-export function automock(obj: any = {}) {
+export function munamuna(obj: any = {}) {
   const existingProxy = proxyMap.get(obj)
   // console.log(existingProxy ? 'reuse' : 'new')
   if (existingProxy) {

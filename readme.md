@@ -1,6 +1,6 @@
-# vitest-automock
+# munamuna
 
-[![tests](https://github.com/insidewhy/vitest-automock/actions/workflows/test.yaml/badge.svg)](https://github.com/insidewhy/vitest-automock/actions/workflows/test.yaml)
+[![tests](https://github.com/insidewhy/munamuna/actions/workflows/test.yaml/badge.svg)](https://github.com/insidewhy/munamuna/actions/workflows/test.yaml)
 
 Build mocks and spies so much more easily and with typescript assisted autocomplete.
 
@@ -11,7 +11,7 @@ Inspired by [python's MagicMock](https://docs.python.org/3/library/unittest.mock
 ## Installation
 
 ```sh
-pnpm install -D vitest-automock
+pnpm install -D munamuna
 ```
 
 ## Motivating example
@@ -78,20 +78,20 @@ it('can append to body of github ticket', async () => {
 The type cast, which is necessary because the mock provides part of the implementation, also removes all type safety from the mock definition.
 There are many ways to work around this with different trade-offs but each of them involve boiler plate which much be repeated at the site of every mock definition.
 
-With `vitest-automock` this becomes easier:
+With `munamuna` this becomes easier:
 
 ```typescript
 // index.spec.ts
 import * as octokitRest from '@octokit/rest'
 import { expect, it, vi } from 'vitest'
-import { automock, returns, returnsSpy, spy } from 'vitest-automock'
+import { munamuna, returns, returnsSpy, spy } from 'munamuna'
 
 import { appendToIssueBody } from './index'
 
 vi.mock('@octokit/rest', () => ({}))
 
 it('can append to body of github ticket', async () => {
-  const { issues } = automock(octokitRest).Octokit[returns]
+  const { issues } = munamuna(octokitRest).Octokit[returns]
   issues.get[returnsSpy].data.body = 'some text'
   const update = issues.update[spy]
 
@@ -108,12 +108,12 @@ This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a `vi.fn`.
 - `returnsSpy` works the same but creates a spy function (e.g. `vi.fn`)
-- `spy` can be used to access a spy created by `automock` and it will create the spy if none exists.
+- `spy` can be used to access a spy created by `munamuna` and it will create the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that may never be needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
 Again it's possible to work around this, at the cost of more code.
-`vitest-automock` creates spies on demand whenever `returnsSpy` is used.
+`munamuna` creates spies on demand whenever `returnsSpy` is used.
 
 ## Tutorial
 
@@ -133,7 +133,7 @@ export default defineConfig({
 ```typescript
 // setup-vitest.ts
 import { vi } from 'vitest'
-import { setup } from 'vitest-automock'
+import { setup } from 'munamuna'
 
 setup({ spyFunction: vi.fn })
 ```
@@ -145,7 +145,7 @@ Path assignment can easily be used to create a nested object:
 ```typescript
 it('can create a deeply nested path', () => {
   const mocked = {} as { outer: { inner: { innerMost: number } } }
-  automock(mocked).outer.inner.innerMost = 7
+  munamuna(mocked).outer.inner.innerMost = 7
   expect(mocked).toEqual({ outer: { inner: { innerMost: 7 } } })
 })
 ```
@@ -156,7 +156,7 @@ Destructuring assignment can be used to assign to multiple nested objects:
 it('can create multiple nested paths with path assignment', () => {
   type Nested = { outer: { inner: number } }
   const mocked = {} as { value1: Nested; value2: Nested }
-  const { value1, value2 } = automock(mocked)
+  const { value1, value2 } = munamuna(mocked)
   value1.outer.inner = 12
   value2.outer.inner = 13
   expect(mocked).toEqual({ value1: { outer: { inner: 12 } }, value2: { outer: { inner: 13 } } })
@@ -171,7 +171,7 @@ It's possible to use a combination of object assignment and path assignment to m
 it('can use an assignment followed by a path assignment', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.obj = { top: 2, nested: { inside: 3 } }
   expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
 
@@ -189,21 +189,21 @@ This following example shows how to create a spy easily:
 ```typescript
 it('can spy on a function using [returnsSpy]', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   fun[returnsSpy] = 12
   expect(mocked.fun()).toEqual(12)
   expect(fun[spy]).toHaveBeenCalled()
 })
 ```
 
-It should be noted that spies are only created when `[returnsSpy]` is used, `vitest-automock` does not need to construct spies that are not explicitly requested.
+It should be noted that spies are only created when `[returnsSpy]` is used, `munamuna` does not need to construct spies that are not explicitly requested.
 
 The following syntax can also be used:
 
 ```typescript
 it('can spy on a top level function using mockReturnValue', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   const funSpy = fun.mockReturnValue(12)
   expect(mocked.fun()).toEqual(12)
   expect(funSpy).toHaveBeenCalled()
@@ -215,7 +215,7 @@ Here also the spy is created lazily when `mockReturnValue` is accessed.
 ```typescript
 it('can spy on a top level function using mockReturnValueOnce', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   const funSpy = fun.mockReturnValueOnce(12)
   fun.mockReturnValueOnce(13)
 
@@ -232,7 +232,7 @@ When mocking a function that returns a nested structure it's generally easier to
 ```typescript
 it('can spy on a function with a return path', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const fun = mock.fun[returnsSpy]
   fun.outer.inner = 12
   expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
@@ -241,7 +241,7 @@ it('can spy on a function with a return path', () => {
 ```
 
 In the above examples it can be seen that the `[spy]` accessor can be used on both `mocked.fun` and `mocked.fun[returnsSpy]`, either can be useful depending on the context.
-From the above examples it may be noticed that the latter leads to shorter code when `automock` is used to build a return path and the former leads to shorter code in all other cases.
+From the above examples it may be noticed that the latter leads to shorter code when `munamuna` is used to build a return path and the former leads to shorter code in all other cases.
 
 The following spy methods are also supported:
 
@@ -254,17 +254,17 @@ The following spy methods are also supported:
 
 ### Resetting mocks
 
-A mock created with `vitest-automock` can be reset to ensure interactions between tests don't cause issues:
+A mock created with `munamuna` can be reset to ensure interactions between tests don't cause issues:
 
 ```typescript
 import { beforeEach, expect, it, vi } from 'vitest'
-import { automock, reset, returns } from 'vitest-automock'
+import { munamuna, reset, returns } from 'munamuna'
 
 import * as lib from './lib'
 
 vi.mock('./lib', () => ({}))
 
-const libMock = automock(lib)
+const libMock = munamuna(lib)
 
 beforeEach(() => {
   libMock[reset]()
@@ -282,7 +282,7 @@ it('can reset mocks partially', () => {
       outer2: { inner: number }
     }
   }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   const funReturns = mock.fun[returns]
   funReturns.outer1.inner = 10
@@ -303,7 +303,7 @@ Consider the following example:
 ```typescript
 it('cannot alter a value by assigning directly to it', () => {
   const mocked = {} as { value: number }
-  let { value } = automock(mocked)
+  let { value } = munamuna(mocked)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   value = 5
   expect(mocked).not.toEqual({ value: 5 })
@@ -311,15 +311,15 @@ it('cannot alter a value by assigning directly to it', () => {
 ```
 
 Here `value` is a proxy, assigning to it will overwrite the reference to the proxy rather than set a value at the intended path.
-This issue can be noticed/avoided by using `const` for all variable definitions assigned from an automock or setting up a lint tool to check for unused variables.
-To have this work as intended `automock(mocked).value = 5` could be used, but this notation is not always convenient.
+This issue can be noticed/avoided by using `const` for all variable definitions assigned from an munamuna or setting up a lint tool to check for unused variables.
+To have this work as intended `munamuna(mocked).value = 5` could be used, but this notation is not always convenient.
 
 An alternative way is shown below:
 
 ```typescript
 it('can use [set] to alter an existing object', () => {
   const mocked = {} as { value: number }
-  const { value } = automock(mocked)
+  const { value } = munamuna(mocked)
   value[set] = 5
   expect(mocked).toEqual({ value: 5 })
 })
@@ -330,7 +330,7 @@ This can be useful when using destructuring assignment to create multiple paths:
 ```typescript
 it('can use destructuring syntax with [set] to alter multiple paths', () => {
   const mocked = {} as { value: number; outer: { inner: number } }
-  const { value, outer } = automock(mocked)
+  const { value, outer } = munamuna(mocked)
   value[set] = 6
   outer.inner = 7
   expect(mocked).toEqual({ value: 6, outer: { inner: 7 } })
@@ -344,7 +344,7 @@ Setting a non-object value then using a path assignment on an object that was co
 ```typescript
 it('cannot assign a primitive value then use a path assignment from a pre-existing reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { outer } = mock
   mock.outer = 6
   expect(mocked).toEqual({ outer: 6 })
@@ -358,7 +358,7 @@ This can be worked around by grabbing a new reference and assigning the object t
 ```typescript
 it('can assign a primitive value then use a path assignment from a new reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.outer = 6
   expect(mocked).toEqual({ outer: 6 })
   mock.outer.inner = 5
@@ -371,7 +371,7 @@ The `[reattach]` method can also be used:
 ```typescript
 it("can use [reattach] to reattach a proxy's object to the mock", () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { outer } = mock
   outer.inner = 5
 
@@ -391,7 +391,7 @@ The same limitation and work-arounds apply when using `[set]`:
 ```typescript
 it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
   outer[set] = 6
   expect(mocked).toEqual({ outer: 6 })
   outer.inner = 5
@@ -400,7 +400,7 @@ it('cannot use [set] to create a primitive value then use a path assignment from
 
 it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { outer } = mock
   outer[set] = 6
   expect(mocked).toEqual({ outer: 6 })
@@ -415,7 +415,7 @@ This limitation does not apply when assigning objects:
 it('can use an object assignment followed by a path assignment from a pre-existing reference', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { obj } = mock
   mock.obj = { top: 2, nested: { inside: 3 } }
   expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
@@ -427,7 +427,7 @@ it('can use an object assignment followed by a path assignment from a pre-existi
 
 it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
   const mocked = {} as { outer: { first: number; second?: number } }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
 
   // this doesn't affect whether the test passes but shows that `[set]` can be used to
   // remove existing properties
@@ -445,7 +445,7 @@ Multiple direct assignments of primitive values work fine:
 ```typescript
 it('can use [set] to alter the existing object multiple times', () => {
   const mocked = {} as { value: number }
-  const { value } = automock(mocked)
+  const { value } = munamuna(mocked)
   value[set] = 5
   expect(mocked).toEqual({ value: 5 })
   value[set] = 6
@@ -455,11 +455,10 @@ it('can use [set] to alter the existing object multiple times', () => {
 
 ## Implementation
 
-`vitest-automock` uses proxies to automatically produce mocks.
-The proxies are only use when interacting with data returned from `automock`, the mock produced for the module being tested does not need to use proxies ensuring the runtime penalty is insignificant.
+`munamuna` uses proxies to automatically produce mocks.
+The proxies are only use when interacting with data returned from `munamuna`, the mock produced for the module being tested does not need to use proxies ensuring the runtime penalty is insignificant.
 Proxies are cached and reused whenever possible: a proxy is only created on the first access of a property or nested property.
 
 ## Plans
 
 - Finish autocomplete support for first release
-- Add ability to change function return values depending on call arguments

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { automock, reattach, reset, returns, returnsSpy, set, spy } from './index'
+import { munamuna, reattach, reset, returns, returnsSpy, set, spy } from './index'
 import * as lib from './testing/lib'
 
 import {
@@ -12,7 +12,7 @@ import {
 
 vi.mock('./testing/lib', () => ({}))
 
-const libMock = automock(lib)
+const libMock = munamuna(lib)
 
 beforeEach(() => {
   libMock[reset]()
@@ -210,14 +210,14 @@ describe('when used to mock module via vi.mock', () => {
 
 it('can create a deeply nested path', () => {
   const mocked = {} as { outer: { inner: { innerMost: number } } }
-  automock(mocked).outer.inner.innerMost = 7
+  munamuna(mocked).outer.inner.innerMost = 7
   expect(mocked).toEqual({ outer: { inner: { innerMost: 7 } } })
 })
 
 it('can create multiple nested paths with path assignment', () => {
   type Nested = { outer: { inner: number } }
   const mocked = {} as { value1: Nested; value2: Nested }
-  const { value1, value2 } = automock(mocked)
+  const { value1, value2 } = munamuna(mocked)
   value1.outer.inner = 12
   value2.outer.inner = 13
   expect(mocked).toEqual({ value1: { outer: { inner: 12 } }, value2: { outer: { inner: 13 } } })
@@ -225,7 +225,7 @@ it('can create multiple nested paths with path assignment', () => {
 
 it('can mock and update a property', () => {
   const mocked = {} as { value: number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.value = 1
   expect(mocked).toEqual({ value: 1 })
 
@@ -235,7 +235,7 @@ it('can mock and update a property', () => {
 
 it('can mock and update nested objects', () => {
   const mocked = {} as { above: { outer1: { inner: number }; outer2: { inner: number } } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   mock.above.outer1.inner = 30
   mock.above.outer2.inner = 40
@@ -248,7 +248,7 @@ it('can mock and update nested objects', () => {
 it('can reset mocks partially', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   const funReturns = mock.fun[returns]
   funReturns.outer1.inner = 10
@@ -262,21 +262,21 @@ it('can reset mocks partially', () => {
 
 it('can mock a function', () => {
   const mocked = {} as { fun: () => number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.fun[returns] = 12
   expect(mocked.fun()).toEqual(12)
 })
 
 it('can mock function with a return path', () => {
   const mocked = {} as { fun: () => { inner: number } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.fun[returns].inner = 12
   expect(mocked.fun()).toEqual({ inner: 12 })
 })
 
 it('can use the previous proxy to manipulate a function spy set with a value', () => {
   const mocked = {} as { fun: () => number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   const { fun } = mock
   fun[returnsSpy] = 14
@@ -308,7 +308,7 @@ it('can use the previous proxy to manipulate a function spy set with a value', (
 
 it('can use the previous proxy reference to access a function spy set with a path', () => {
   const mocked = {} as { fun: () => { inner: number } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   const { fun } = mock
   fun[returnsSpy].inner = 24
@@ -323,7 +323,7 @@ it('can use the previous proxy reference to access a function spy set with a pat
 
 it('can spy on a function using [returnsSpy]', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   fun[returnsSpy] = 12
   expect(mocked.fun()).toEqual(12)
   expect(fun[spy]).toHaveBeenCalled()
@@ -331,7 +331,7 @@ it('can spy on a function using [returnsSpy]', () => {
 
 it('can spy on a function using mockReturnValue', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   const funSpy = fun.mockReturnValue(12)
   expect(mocked.fun()).toEqual(12)
   expect(funSpy).toHaveBeenCalled()
@@ -339,7 +339,7 @@ it('can spy on a function using mockReturnValue', () => {
 
 it('can spy on a function using mockReturnValueOnce', () => {
   const mocked = {} as { fun: () => number }
-  const { fun } = automock(mocked)
+  const { fun } = munamuna(mocked)
   const funSpy = fun.mockReturnValueOnce(12)
   fun.mockReturnValueOnce(13)
 
@@ -351,7 +351,7 @@ it('can spy on a function using mockReturnValueOnce', () => {
 
 it('can spy on a function with a return path', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const fun = mock.fun[returnsSpy]
   fun.outer.inner = 12
   expect(mocked.fun()).toEqual({ outer: { inner: 12 } })
@@ -361,7 +361,7 @@ it('can spy on a function with a return path', () => {
 it('can use an object assignment followed by a path assignment from a pre-existing reference', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mocked: any = {}
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { obj } = mock
   mock.obj = { top: 2, nested: { inside: 3 } }
   expect(mocked).toEqual({ obj: { top: 2, nested: { inside: 3 } } })
@@ -373,7 +373,7 @@ it('can use an object assignment followed by a path assignment from a pre-existi
 
 it('can mock the return value of a function twice with a return path and spy on both calls', () => {
   const mocked = {} as { fun: () => { inner: number } }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   const fun1 = mock.fun[returnsSpy]
   fun1.inner = 100
@@ -391,7 +391,7 @@ it('reuses cached object proxies', () => {
     above: { inner: { value: number } }
     inside: { nested: { moreNested: { value: number } } }
   }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
 
   // not using toBe because vitest has issues dealing with certain proxies that lead to
   // infinite stack recursion
@@ -402,7 +402,7 @@ it('reuses cached object proxies', () => {
 
 it('can use [spy] to create a nonexistent function proxy', () => {
   const mocked = {} as { fun: () => void }
-  const fun = automock(mocked).fun[spy]
+  const fun = munamuna(mocked).fun[spy]
 
   mocked.fun()
   expect(fun).toHaveBeenCalled()
@@ -410,7 +410,7 @@ it('can use [spy] to create a nonexistent function proxy', () => {
 
 it('cannot alter a value by assigning directly to it', () => {
   const mocked = {} as { value: number }
-  let { value } = automock(mocked)
+  let { value } = munamuna(mocked)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   value = 5
   expect(mocked).not.toEqual({ value: 5 })
@@ -418,7 +418,7 @@ it('cannot alter a value by assigning directly to it', () => {
 
 it('cannot assign a primitive value then use a path assignment from a pre-existing reference after', () => {
   const mocked = {} as { value: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { value } = mock
   mock.value = 6
   expect(mocked).toEqual({ value: 6 })
@@ -428,7 +428,7 @@ it('cannot assign a primitive value then use a path assignment from a pre-existi
 
 it("can use [reattach] to reattach a proxy's object to the mock", () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { outer } = mock
   outer.inner = 5
 
@@ -444,7 +444,7 @@ it("can use [reattach] to reattach a proxy's object to the mock", () => {
 
 it('can assign a primitive value then use a path assignment from a new reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   mock.outer = 6
   expect(mocked).toEqual({ outer: 6 })
   mock.outer.inner = 5
@@ -453,14 +453,14 @@ it('can assign a primitive value then use a path assignment from a new reference
 
 it('can use [set] to alter the existing target', () => {
   const mocked = {} as { value: number }
-  const { value } = automock(mocked)
+  const { value } = munamuna(mocked)
   value[set] = 5
   expect(mocked).toEqual({ value: 5 })
 })
 
 it('can use destructuring syntax with [set] to alter multiple paths', () => {
   const mocked = {} as { value: number; outer: { inner: number } }
-  const { value, outer } = automock(mocked)
+  const { value, outer } = munamuna(mocked)
   value[set] = 6
   outer.inner = 7
   expect(mocked).toEqual({ value: 6, outer: { inner: 7 } })
@@ -468,21 +468,21 @@ it('can use destructuring syntax with [set] to alter multiple paths', () => {
 
 it('can use [set] to alter an existing object using a path', () => {
   const mocked = {} as { outer: { inner: number } }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
   outer[set].inner = 5
   expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('cannot use [set] to alter an existing object using a path', () => {
   const mocked = {} as { outer: { inner: number } }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
   outer[set].inner = 5
   expect(mocked).toEqual({ outer: { inner: 5 } })
 })
 
 it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
   outer[set] = 6
   expect(mocked).toEqual({ outer: 6 })
   outer.inner = 5
@@ -491,7 +491,7 @@ it('cannot use [set] to create a primitive value then use a path assignment from
 
 it('can use [set] to create a primitive value then use a path assignment from a new reference', () => {
   const mocked = {} as { outer: { inner: number } | number }
-  const mock = automock(mocked)
+  const mock = munamuna(mocked)
   const { outer } = mock
   outer[set] = 6
   expect(mocked).toEqual({ outer: 6 })
@@ -501,7 +501,7 @@ it('can use [set] to create a primitive value then use a path assignment from a 
 
 it('can use [set] to overwrite an object then alter it with a path assignment from a pre-existing reference', () => {
   const mocked = {} as { outer: { first: number; second?: number } }
-  const { outer } = automock(mocked)
+  const { outer } = munamuna(mocked)
 
   // this doesn't affect whether the test passes but shows that `[set]` can be used to
   // remove existing properties
@@ -515,7 +515,7 @@ it('can use [set] to overwrite an object then alter it with a path assignment fr
 
 it('can use [set] to alter a property multiple times', () => {
   const mocked = {} as { value: number }
-  const { value } = automock(mocked)
+  const { value } = munamuna(mocked)
   value[set] = 5
   expect(mocked).toEqual({ value: 5 })
   value[set] = 6
