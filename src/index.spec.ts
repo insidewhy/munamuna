@@ -260,7 +260,7 @@ it('can reset mocks partially', () => {
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
 })
 
-it('can mock a function', () => {
+it('can mock a function with [returns]', () => {
   const mocked = {} as { fun: () => number }
   const mock = munamuna(mocked)
   mock.fun[returns] = 12
@@ -349,7 +349,7 @@ it('can spy on a function using mockReturnValueOnce', () => {
   expect(fun[spy]).toHaveBeenCalledTimes(2)
 })
 
-it('can spy on a function with a return path', () => {
+it('can spy on a function with a return path using [returnsSpy]', () => {
   const mocked = {} as { fun: () => { outer: { inner: number } } }
   const mock = munamuna(mocked)
   const fun = mock.fun[returnsSpy]

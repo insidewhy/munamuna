@@ -462,3 +462,4 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 ## Plans
 
 - Finish autocomplete support for first release
+- Add an `apply` trap for mocking implementations
