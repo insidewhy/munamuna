@@ -107,13 +107,14 @@ Values returned from mock are also type checked according to the structure of th
 This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a spy.
-- function calls creates a spy function (e.g. `vi.fn`).
-- `spy` can be used to access a spy created by `munamuna` and it will create the spy if none exists.
+- Nested path expressions can be used to create mock data at corresponding paths within a mocked object.
+- A function call can be used to create a spy function (e.g. `vi.fn`) and assigning to the return value can be used to create the return value of the mock function.
+- `spy` can be used to access a spy created by `munamuna`, creating the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that may never be needed.
 These must be tracked by `vitest` and reset on every call to `vi.clearAllMocks`.
 Again it's possible to work around this, at the cost of more code.
-`munamuna` creates spies on demand whenever `returnsSpy` is used.
+`munamuna` creates spies on demand whenever `[returnsSpy]`, `[spy]` or a function call are used.
 
 ## Tutorial
 
@@ -132,8 +133,8 @@ export default defineConfig({
 
 ```typescript
 // setup-vitest.ts
-import { vi } from 'vitest'
 import { setup } from 'munamuna'
+import { vi } from 'vitest'
 
 setup({ spyFunction: vi.fn })
 ```
@@ -211,6 +212,8 @@ it('can spy on a top level function using mockReturnValue', () => {
 ```
 
 Here also the spy is created lazily when `mockReturnValue` is accessed.
+
+`mockReturnValueOnce` can be used as shown below:
 
 ```typescript
 it('can spy on a top level function using mockReturnValueOnce', () => {
@@ -477,4 +480,3 @@ Proxies are cached and reused whenever possible: a proxy is only created on the 
 ## Plans
 
 - Finish autocomplete support for first release
-- Add an `apply` trap for mocking implementations
