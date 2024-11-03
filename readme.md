@@ -543,6 +543,10 @@ it('can use [set] to alter the existing object multiple times', () => {
 The proxies are only use when interacting with data returned from `munamuna`, the mock produced for the module being tested does not need to use proxies ensuring the runtime penalty is insignificant.
 Proxies are cached and reused whenever possible: a proxy is only created on the first access of a property or nested property.
 
+## Changelog
+
+[munamuna changelog](changelog.md)
+
 ## Plans
 
 ### Version 1.0
