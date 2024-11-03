@@ -37,25 +37,6 @@ const metaMap = new WeakMap<any, any>()
 // function against return object container
 const functionSet = new WeakMap<any, any>()
 
-function resetMocks(obj: any) {
-  for (const prop of Object.getOwnPropertyNames(obj)) {
-    delete obj[prop]
-  }
-
-  const meta = metaMap.get(obj)
-  if (meta) {
-    delete meta.parent[meta.key]
-  }
-}
-
-function reattachProxy(obj: any) {
-  const meta = metaMap.get(obj)
-  if (!meta) {
-    throw new Error('Cannot reattach a top level proxy')
-  }
-  meta.parent[meta.key] = obj
-}
-
 function mockFunction(proxy: any, obj: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(obj)
   if (!meta) {
@@ -112,13 +93,24 @@ const getTraps: { [index: symbol | string]: (obj: any, proxy: any) => any } = {
 
   [reset](obj: any) {
     return () => {
-      resetMocks(obj)
+      for (const prop of Object.getOwnPropertyNames(obj)) {
+        delete obj[prop]
+      }
+
+      const meta = metaMap.get(obj)
+      if (meta) {
+        delete meta.parent[meta.key]
+      }
     }
   },
 
   [reattach](obj: any) {
     return () => {
-      reattachProxy(obj)
+      const meta = metaMap.get(obj)
+      if (!meta) {
+        throw new Error('Cannot reattach a top level proxy')
+      }
+      meta.parent[meta.key] = obj
     }
   },
 }
@@ -157,7 +149,7 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } 
 
   [set](obj: any, newVal: any) {
     if (typeof newVal === 'object' && typeof obj === 'object') {
-      // avoid detaching the original obj from its proxy
+      // avoid detaching the original object from its proxy
       for (const prop of Object.getOwnPropertyNames(obj)) {
         delete obj[prop]
       }
