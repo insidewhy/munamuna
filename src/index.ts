@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-function-type */
 interface Spy {
   mockReturnValue<T>(value: T): Spy
   mockReturnValueOnce<T>(value: T): Spy
@@ -33,9 +33,10 @@ type SpyFunction = (option?: any) => Spy
 
 let spyFunction: SpyFunction
 
-const proxyMap = new WeakMap<any, any>()
-const metaMap = new WeakMap<any, any>()
-// function against return object container
+const proxyMap = new WeakMap<any, ProxyConstructor>()
+const metaMap = new WeakMap<any, { key: string | symbol; parent: any }>()
+
+// maps the mock data to the return object container
 const functionSet = new WeakMap<any, any>()
 
 function mockFunction(proxy: ProxyConstructor, obj: any, value: any, isReturnsSpy: boolean) {
@@ -69,39 +70,40 @@ function mockFunction(proxy: ProxyConstructor, obj: any, value: any, isReturnsSp
   return fun
 }
 
-const getTraps: { [index: symbol | string]: (obj: any, proxy: ProxyConstructor) => any } = {
-  [returns](obj: any, proxy: ProxyConstructor) {
+const getTraps: { [index: symbol | string]: (obj: any, proxy: any) => any } = {
+  [returns](obj: any, proxy: any): any {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, false)
     }
     return proxy
   },
 
-  [returnsSpy](obj: any, proxy: ProxyConstructor) {
+  [returnsSpy](obj: any, proxy: any): any {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, true)
     }
     return proxy
   },
 
-  [spy](obj: any, proxy: ProxyConstructor) {
+  [spy](obj: any, proxy: any): Function {
     return functionSet.get(obj)?.[spy] ?? mockFunction(proxy, obj, undefined, true)
   },
 
-  [set](_: any, proxy: ProxyConstructor) {
+  [set](_: any, proxy: any): any {
     return proxy
   },
 
-  [reset](obj: any) {
-    return () => {
+  [reset](obj: any, proxy: any): () => any {
+    return (): any => {
       for (const prop of Object.getOwnPropertyNames(obj)) {
         delete obj[prop]
       }
+      return proxy
     }
   },
 
-  [detach](obj: any, proxy: ProxyConstructor): () => ProxyConstructor {
-    return () => {
+  [detach](obj: any, proxy: any): () => any {
+    return (): any => {
       const meta = metaMap.get(obj)
       if (!meta) {
         throw new Error('Cannot detach a root munamuna')
@@ -111,19 +113,20 @@ const getTraps: { [index: symbol | string]: (obj: any, proxy: ProxyConstructor) 
     }
   },
 
-  [reattach](obj: any) {
-    return () => {
+  [reattach](obj: any, proxy: any): () => any {
+    return (): any => {
       const meta = metaMap.get(obj)
       if (!meta) {
         throw new Error('Cannot reattach a top level proxy')
       }
       meta.parent[meta.key] = obj
+      return proxy
     }
   },
 }
 
 for (const key of spyMethods) {
-  getTraps[key] = (obj: any, proxy: ProxyConstructor) => {
+  getTraps[key] = (obj: any, proxy: any) => {
     const retObj = functionSet.get(obj)
     if (retObj) {
       return retObj[spy][key]
@@ -134,8 +137,8 @@ for (const key of spyMethods) {
   }
 }
 
-const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: ProxyConstructor) => any } = {
-  [returns](obj: any, newVal: any, proxy: ProxyConstructor) {
+const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } = {
+  [returns](obj: any, newVal: any, proxy: any): void {
     const retObj = functionSet.get(obj)
     if (retObj) {
       retObj.value = newVal
@@ -144,7 +147,7 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: ProxyConstruct
     }
   },
 
-  [returnsSpy](obj: any, newVal: any, proxy: ProxyConstructor) {
+  [returnsSpy](obj: any, newVal: any, proxy: any): void {
     const retObj = functionSet.get(obj)
     if (retObj) {
       retObj[spy].mockReturnValue(newVal)
@@ -154,7 +157,7 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: ProxyConstruct
     }
   },
 
-  [set](obj: any, newVal: any) {
+  [set](obj: any, newVal: any): void {
     if (typeof newVal === 'object' && typeof obj === 'object') {
       // avoid detaching the original object from its proxy
       for (const prop of Object.getOwnPropertyNames(obj)) {
@@ -173,13 +176,13 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: ProxyConstruct
 
 interface ProxyTarget {
   obj: any
-  proxy: ProxyConstructor
+  proxy: any
 
   (): void
 }
 
 const proxyHandler: ProxyHandler<ProxyTarget> = {
-  get({ obj, proxy }: any, key: string | symbol) {
+  get({ obj, proxy }: any, key: string | symbol): any {
     const trap = getTraps[key]
     if (trap) {
       return trap(obj, proxy)
@@ -219,7 +222,7 @@ const proxyHandler: ProxyHandler<ProxyTarget> = {
     return true
   },
 
-  apply({ obj, proxy }: any) {
+  apply({ obj, proxy }: any): any {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, true)
     }
@@ -227,7 +230,7 @@ const proxyHandler: ProxyHandler<ProxyTarget> = {
   },
 }
 
-export function createProxy(obj: any): ProxyConstructor {
+export function createProxy(obj: any): any {
   // the proxy has to be a function or the apply trap cannot work
   const dummyFunction: ProxyTarget = () => {}
   dummyFunction.obj = obj
@@ -236,7 +239,7 @@ export function createProxy(obj: any): ProxyConstructor {
   return proxy
 }
 
-export function munamuna(obj: any = {}) {
+export function munamuna(obj: any = {}): any {
   const existingProxy = proxyMap.get(obj)
   if (existingProxy) {
     return existingProxy
@@ -251,6 +254,6 @@ interface Setup {
   spyFunction: SpyFunction
 }
 
-export function setup({ spyFunction: spyFunctionParam }: Setup) {
+export function setup({ spyFunction: spyFunctionParam }: Setup): void {
   spyFunction = spyFunctionParam
 }
