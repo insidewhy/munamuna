@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { munamuna, reattach, reset, returns, returnsSpy, set, spy } from './index'
+import { detach, munamuna, reattach, reset, returns, returnsSpy, set, spy } from './index'
 import * as lib from './testing/lib'
 
 import {
@@ -298,11 +298,59 @@ it('can reset mocks partially', () => {
   const funReturns = mock.fun[returns]
   funReturns.outer1.inner = 10
   funReturns.outer2.inner = 20
-
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
 
+  // funReturns.outer2[detach]() could be used to remove `outer2: {}`
   funReturns.outer2[reset]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: {} })
+})
+
+it('can detach mocked data', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const funReturns = mock.fun[returns]
+  funReturns.outer1.inner = 10
+  funReturns.outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  funReturns.outer2[detach]()
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+})
+
+it('can reattach detached mocked data', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const funReturns = mock.fun[returns]
+  funReturns.outer1.inner = 10
+  funReturns.outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  const detached = funReturns.outer2[detach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+
+  detached[reattach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+})
+
+it('can reattach detached mocked data using its original reference', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const { outer1, outer2 } = mock.fun[returns]
+  outer1.inner = 10
+  outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  outer2[detach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+
+  outer2[reattach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
 })
 
 it('can mock a function with [returns]', () => {

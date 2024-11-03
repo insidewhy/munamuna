@@ -26,6 +26,7 @@ export const returnsSpy = Symbol('returns spy')
 export const spy = Symbol('spy')
 export const set = Symbol('set')
 export const reset = Symbol('reset')
+export const detach = Symbol('detach')
 export const reattach = Symbol('reattach')
 
 type SpyFunction = (option?: any) => Spy
@@ -96,11 +97,17 @@ const getTraps: { [index: symbol | string]: (obj: any, proxy: ProxyConstructor) 
       for (const prop of Object.getOwnPropertyNames(obj)) {
         delete obj[prop]
       }
+    }
+  },
 
+  [detach](obj: any, proxy: ProxyConstructor): () => ProxyConstructor {
+    return () => {
       const meta = metaMap.get(obj)
-      if (meta) {
-        delete meta.parent[meta.key]
+      if (!meta) {
+        throw new Error('Cannot detach a root munamuna')
       }
+      delete meta.parent[meta.key]
+      return proxy
     }
   },
 

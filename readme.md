@@ -213,7 +213,7 @@ it('can spy on a top level function using mockReturnValue', () => {
 
 Here also the spy is created lazily when `mockReturnValue` is accessed.
 
-`mockReturnValueOnce` can be used as shown below:
+`mockReturnValueOnce` can also be used:
 
 ```typescript
 it('can spy on a top level function using mockReturnValueOnce', () => {
@@ -290,7 +290,7 @@ beforeEach(() => {
 })
 ```
 
-This can also be called on any tree to reset all the mocks reachable from that point
+This can also be called on any tree to reset all the data inside of the mock.
 
 ```typescript
 it('can reset mocks partially', () => {
@@ -309,7 +309,73 @@ it('can reset mocks partially', () => {
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
 
   funReturns.outer2[reset]()
+  // funReturns.outer2[detach]() could be used to remove `outer2: {}`
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: {} })
+})
+```
+
+### Detaching mocks
+
+An object created by a `munamuna` can be detached from its parent object using `[detach]`:
+
+```typescript
+it('can detach mocked data', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const funReturns = mock.fun[returns]
+  funReturns.outer1.inner = 10
+  funReturns.outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  funReturns.outer2[detach]()
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+})
+```
+
+An object can be reattached using `[reattach]`:
+
+```typescript
+it('can reattach detached mocked data', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const funReturns = mock.fun[returns]
+  funReturns.outer1.inner = 10
+  funReturns.outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  const detached = funReturns.outer2[detach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+
+  detached[reattach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+})
+```
+
+Note here that the detached `munamuna` is returned from the detach call and is used to reattach the object.
+Using `funReturns.outer2[reattach]` would not work as the access of `runReturns.outer2` will create a new `munamuna` when it determines no existing `munamuna` is attached to the tree at `funReturns.outer2`.
+
+Alternatively a reference to the `munamuna` can be created before it is detached and used to reattach it:
+
+```typescript
+it('can reattach detached mocked data using its original reference', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mocked: any = {}
+  const mock = munamuna(mocked)
+
+  const { outer1, outer2 } = mock.fun[returns]
+  outer1.inner = 10
+  outer2.inner = 20
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
+
+  outer2[detach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 } })
+
+  outer2[reattach]()
+  expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
 })
 ```
 
