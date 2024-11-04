@@ -34,10 +34,23 @@ type SpyFunction = (option?: any) => Spy
 let spyFunction: SpyFunction
 
 const proxyMap = new WeakMap<any, ProxyConstructor>()
-const metaMap = new WeakMap<any, { key: string | symbol; parent: any }>()
 
 // maps the mock data to the return object container
 const functionSet = new WeakMap<any, any>()
+
+interface ProxyTarget {
+  obj: any
+  proxy: any
+
+  (): void
+}
+
+interface ProxyMeta {
+  key: string | symbol
+  parent: any
+}
+
+const metaMap = new WeakMap<any, ProxyMeta>()
 
 function mockFunction(proxy: ProxyConstructor, obj: any, value: any, isReturnsSpy: boolean) {
   const meta = metaMap.get(obj)
@@ -57,13 +70,13 @@ function mockFunction(proxy: ProxyConstructor, obj: any, value: any, isReturnsSp
   }
   const fun: any = isReturnsSpy ? spyFunction(implementation) : implementation
 
-  meta.parent[meta.key] = fun
   // the spy can be hosted in the returned object container, it's now detached and not used
   // for anything but the function return value
   retObj[spy] = isReturnsSpy ? fun : undefined
 
   functionSet.set(prevTarget, retObj)
 
+  meta.parent[meta.key] = fun
   metaMap.set(fun, meta)
   proxyMap.set(fun, proxy)
 
@@ -174,15 +187,9 @@ const setTraps: { [index: symbol]: (obj: any, newVal: any, proxy: any) => any } 
   },
 }
 
-interface ProxyTarget {
-  obj: any
-  proxy: any
-
-  (): void
-}
-
 const proxyHandler: ProxyHandler<ProxyTarget> = {
-  get({ obj, proxy }: any, key: string | symbol): any {
+  get(target: ProxyTarget, key: string | symbol): any {
+    const { obj, proxy } = target
     const trap = getTraps[key]
     if (trap) {
       return trap(obj, proxy)
@@ -198,31 +205,116 @@ const proxyHandler: ProxyHandler<ProxyTarget> = {
     }
 
     const newProp: any = {}
-    metaMap.set(newProp, { parent: obj, key })
-    obj[key] = newProp
+    if (Array.isArray(obj)) {
+      const meta = metaMap.get(obj)
+      if (!meta) {
+        throw new Error(
+          'Something went badly wrong when accesing a path that used to be an array, please report a bug',
+        )
+      }
+
+      const newObj: any = {}
+      newObj[key] = newProp
+      target.obj = newObj
+      meta.parent[meta.key] = newObj
+      metaMap.set(newObj, meta)
+      proxyMap.set(newObj, proxy)
+      metaMap.set(newProp, { parent: newObj, key })
+    } else {
+      obj[key] = newProp
+      metaMap.set(newProp, { parent: obj, key })
+    }
+
     return munamuna(newProp)
   },
 
-  set({ obj, proxy }: any, key: string | symbol, newVal: any): boolean {
+  set(target: ProxyTarget, key: string | symbol, newVal: any): boolean {
+    const { obj, proxy } = target
     const trap = setTraps[key as symbol]
     if (trap) {
       trap(obj, newVal, proxy)
-    } else {
-      let assignObj: any
-      if (typeof newVal === 'object' && typeof (assignObj = obj[key]) === 'object') {
-        for (const prop of Object.getOwnPropertyNames(assignObj)) {
-          delete obj[prop]
-        }
-        Object.assign(assignObj, newVal)
-      } else {
-        obj[key] = newVal
-      }
+      return true
     }
 
+    if (!isNaN(key as unknown as number)) {
+      // have an assignment to a numeric property
+      if (Array.isArray(obj)) {
+        obj[key as unknown as number] = newVal
+      } else {
+        const meta = metaMap.get(obj)
+        if (!meta) {
+          throw new Error('Cannot set an array index on a top-level munamuna')
+        }
+
+        const newArray: any[] = []
+        meta.parent[meta.key] = newArray
+        metaMap.set(newArray, meta)
+        proxyMap.set(newArray, proxy)
+        newArray[key as unknown as number] = newVal
+        target.obj = newArray
+      }
+      return true
+    }
+
+    if (typeof newVal === 'object') {
+      const objToAssignTo = obj[key]
+      if (typeof objToAssignTo === 'object') {
+        if (Array.isArray(newVal)) {
+          if (Array.isArray(objToAssignTo)) {
+            // they are both arrays
+            objToAssignTo.length = 0
+            objToAssignTo.push(...newVal)
+            return true
+          }
+        } else if (!Array.isArray(objToAssignTo)) {
+          // they are both objects
+          for (const prop of Object.getOwnPropertyNames(objToAssignTo)) {
+            delete obj[prop]
+          }
+          Object.assign(objToAssignTo, newVal)
+          return true
+        }
+
+        // one is an array and one is an object
+        const meta = metaMap.get(objToAssignTo)
+        if (!meta) {
+          throw new Error('Cannot reassign an object to a top-level munamuna')
+        }
+
+        meta.parent[meta.key] = newVal
+        metaMap.set(newVal, { parent: obj, key })
+        return true
+      }
+
+      obj[key] = newVal
+      // TODO: more needed here? target?
+      // TODO: is this line correct? need more tests involving array->object and vice-versa
+      metaMap.set(newVal, { parent: obj, key })
+      return true
+    }
+
+    if (Array.isArray(obj)) {
+      // overwrite array as object
+      const meta = metaMap.get(obj)
+      if (!meta) {
+        throw new Error('Something went badly wrong when overwriting an array, please report a bug')
+      }
+      const newObj: any = {}
+
+      meta.parent[meta.key] = newObj
+      metaMap.set(newObj, meta)
+      proxyMap.set(newObj, proxy)
+      newObj[key] = newVal
+
+      target.obj = newObj
+      return true
+    }
+
+    obj[key] = newVal
     return true
   },
 
-  apply({ obj, proxy }: any): any {
+  apply({ obj, proxy }: ProxyTarget): any {
     if (!functionSet.has(obj)) {
       mockFunction(proxy, obj, undefined, true)
     }
@@ -241,6 +333,7 @@ export function createProxy(obj: any): any {
 
 export function munamuna(obj: any = {}): any {
   const existingProxy = proxyMap.get(obj)
+  // console.log(existingProxy ? 'reuse' : 'create')
   if (existingProxy) {
     return existingProxy
   } else {

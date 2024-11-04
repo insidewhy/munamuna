@@ -353,6 +353,22 @@ it('can reattach detached mocked data using its original reference', () => {
   expect(mocked.fun()).toEqual({ outer1: { inner: 10 }, outer2: { inner: 20 } })
 })
 
+it('can detach subobject through an existing reference then detach the parent through an existing reference', () => {
+  const mocked = {} as { value: { inner: string } }
+  const mock = munamuna(mocked)
+
+  const { value } = mock
+  const { inner } = value
+  value.inner = 'merry'
+  expect(mocked).toEqual({ value: { inner: 'merry' } })
+
+  inner[detach]()
+  expect(mocked).toEqual({ value: {} })
+
+  value[detach]()
+  expect(mocked).toEqual({})
+})
+
 it('can mock a function with [returns]', () => {
   const mocked = {} as { fun: () => number }
   const mock = munamuna(mocked)
@@ -543,6 +559,24 @@ it('cannot assign a primitive value then use a path assignment from a pre-existi
   expect(mocked).not.toEqual({ value: { inner: 5 } })
 })
 
+it('can assign a primitive value then use a path assignment from a new reference', () => {
+  const mocked = {} as { outer: { inner: number } | number }
+  const mock = munamuna(mocked)
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner = 5
+  expect(mocked).toEqual({ outer: { inner: 5 } })
+})
+
+it('can assign a primitive value then use a nested path assignment from a new reference', () => {
+  const mocked = {} as { outer: { inner: { innerMost: number } } | number }
+  const mock = munamuna(mocked)
+  mock.outer = 6
+  expect(mocked).toEqual({ outer: 6 })
+  mock.outer.inner.innerMost = 5
+  expect(mocked).toEqual({ outer: { inner: { innerMost: 5 } } })
+})
+
 it("can use [reattach] to reattach a proxy's object to the mock", () => {
   const mocked = {} as { outer: { inner: number } | number }
   const mock = munamuna(mocked)
@@ -559,16 +593,7 @@ it("can use [reattach] to reattach a proxy's object to the mock", () => {
   expect(mocked).toEqual({ outer: { inner: 7 } })
 })
 
-it('can assign a primitive value then use a path assignment from a new reference', () => {
-  const mocked = {} as { outer: { inner: number } | number }
-  const mock = munamuna(mocked)
-  mock.outer = 6
-  expect(mocked).toEqual({ outer: 6 })
-  mock.outer.inner = 5
-  expect(mocked).toEqual({ outer: { inner: 5 } })
-})
-
-it('can use [set] to alter the existing target', () => {
+it('can use [set] to alter an existing target', () => {
   const mocked = {} as { value: number }
   const { value } = munamuna(mocked)
   value[set] = 5
@@ -637,4 +662,153 @@ it('can use [set] to alter a property multiple times', () => {
   expect(mocked).toEqual({ value: 5 })
   value[set] = 6
   expect(mocked).toEqual({ value: 6 })
+})
+
+describe('for arrays', () => {
+  it('can set a value on an array using a numeric index then update it through a new reference', () => {
+    const mocked = {} as { value: number[] }
+    const mock = munamuna(mocked)
+    mock.value[0] = 12
+    expect(mocked).toEqual({ value: [12] })
+  })
+
+  it('can set a value on an array using a numeric index then update it through a new reference', () => {
+    const mocked = {} as { value: number[] }
+    const mock = munamuna(mocked)
+    mock.value[1] = 12
+    expect(mocked).toEqual({ value: [undefined, 12] })
+
+    mock.value[0] = 11
+    expect(mocked).toEqual({ value: [11, 12] })
+  })
+
+  it('can set a value on an array using a numeric index then update it through an existing reference', () => {
+    const mocked = {} as { value: number[] }
+    const { value } = munamuna(mocked)
+    value[1] = 14
+    expect(mocked).toEqual({ value: [undefined, 14] })
+
+    value[0] = 13
+    expect(mocked).toEqual({ value: [13, 14] })
+  })
+
+  it('can assign an array to a path then update it with assignment through a new reference', () => {
+    const mocked = {} as { value: number[] }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    mock.value[1] = 13
+    expect(mocked).toEqual({ value: [14, 13] })
+  })
+
+  // TODO: consider if this can be fixed
+  it('cannot assign an array to a path then update it with an assignment through an existing reference', () => {
+    const mocked = {} as { value: number[] }
+    const mock = munamuna(mocked)
+    const { value } = mock
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    // a new array will be created
+    value[1] = 13
+    expect(mocked).toEqual({ value: [undefined, 13] })
+  })
+
+  it('can assign an array and overwrite it with an object through a new reference', () => {
+    const mocked = {} as { value: number[] | { inner: number } }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    mock.value.inner = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+
+    mock.value.inner = 'holiday'
+    expect(mocked).toEqual({ value: { inner: 'holiday' } })
+  })
+
+  it('can create an array with a path then overwrite it with an object through a new reference', () => {
+    const mocked = {} as { value: number[] | { inner: string } }
+    const mock = munamuna(mocked)
+    mock.value[1] = 12
+    expect(mocked).toEqual({ value: [undefined, 12] })
+
+    mock.value.inner = 'hi'
+    expect(mocked).toEqual({ value: { inner: 'hi' } })
+
+    mock.value.inner = 'ho'
+    expect(mocked).toEqual({ value: { inner: 'ho' } })
+  })
+
+  // TODO: test with multiple inner assignment
+
+  it('can assign an array and overwrite it with an object through a new reference then overwrite it again with a number', () => {
+    const mocked = {} as { value: number[] | { inner: number } | number }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    mock.value.inner = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+
+    mock.value = 6
+    expect(mocked).toEqual({ value: 6 })
+  })
+
+  it('can assign an array and overwrite it with an object then detach the inner object then the outer object all through new references', () => {
+    const mocked = {} as { value: number[] | { inner: string } }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    mock.value.inner = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+
+    mock.value.inner[detach]()
+    expect(mocked).toEqual({ value: {} })
+
+    mock.value[detach]()
+    expect(mocked).toEqual({})
+  })
+
+  it('can assign an array and overwrite it with an object and detach the inner object then the outer object through an existing reference', () => {
+    const mocked = {} as { value: number[] | { inner: string } }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    const { value } = mock
+    value.inner = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+
+    value.inner[detach]()
+    expect(mocked).toEqual({ value: {} })
+
+    value[detach]()
+    expect(mocked).toEqual({})
+  })
+
+  it('can assign an object then overwrite it with an object using a [set] on a new reference', () => {
+    const mocked = {} as { value: number[] | { inner: string } }
+    const mock = munamuna(mocked)
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    const { inner } = mock.value
+    inner[set] = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+  })
+
+  it('can assign an object with a path, then overwrite it using an array, then overwrite it again using a path, all through new references', () => {
+    const mocked = {} as { value: number[] | { inner: string } }
+    const mock = munamuna(mocked)
+
+    mock.value.inner = 'hoho'
+    mock.value = [14]
+    expect(mocked).toEqual({ value: [14] })
+
+    mock.value.inner = 'merry'
+    expect(mocked).toEqual({ value: { inner: 'merry' } })
+  })
 })

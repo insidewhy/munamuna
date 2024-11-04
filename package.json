@@ -16,7 +16,8 @@
     "test": "pnpm vitest",
     "validate": "pnpm lint-check && pnpm format-check && pnpm type-check && pnpm test run",
     "prepublishOnly": "pnpm build",
-    "copy-dev-to-article": "prettier --prose-wrap never readme.md | wl-copy"
+    "copy-dev-to-article": "prettier --prose-wrap never readme.md | wl-copy",
+    "count-reuses": "./scripts/count-reuses.sh"
   },
   "repository": {
     "type": "git",
