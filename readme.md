@@ -108,7 +108,7 @@ This test shows how to mock functions:
 
 - `returns` can be used to mock function or constructor return values without creating a spy.
 - Nested path expressions can be used to create mock data at corresponding paths within a mocked object.
-- A function call can be used to create a spy function (e.g. `vi.fn`) and assigning to the return value can be used to create the return value of the mock function.
+- A function call can be used to create a spy function (e.g. `vi.fn`) and the return value can be used to mock the return value of the mock function.
 - `spy` can be used to access a spy created by `munamuna`, creating the spy if none exists.
 
 There are other advantages, by default `vi.mock` will create a `vi.fn` for every top-level export in the mocked module which can involve creating a lot of objects that may never be needed.
@@ -199,7 +199,7 @@ it('can spy on a function using [returnsSpy]', () => {
 
 It should be noted that spies are only created when `[returnsSpy]` is used, `munamuna` does not need to construct spies that are not explicitly requested.
 
-The following syntax can also be used:
+The following syntax is equivalent:
 
 ```typescript
 it('can spy on a top level function using mockReturnValue', () => {
@@ -269,6 +269,45 @@ The following spy methods are also supported:
 - `mockRejectedValueOnce`
 - `mockImplementation`
 - `mockImplementationOnce`
+
+### Dealing with arrays
+
+Arrays can be created much like objects using integral path expressions, assignments, or a mix:
+
+```typescript
+describe('mocked array', () => {
+  it('can be created using a numeric index', () => {
+    const mocked = {} as { value: number[] }
+    const mock = munamuna(mocked)
+    mock.value[0] = 12
+    expect(mocked).toEqual({ value: [12] })
+  })
+
+  it('can be created containing a nested object using a path expression after an integral index', () => {
+    const mocked = {} as { value: Array<{ outer: { inner: string } }> }
+    const mock = munamuna(mocked)
+    mock.value[0].outer.inner = 'the funs'
+    expect(mocked).toEqual({ value: [{ outer: { inner: 'the funs' } }] })
+  })
+
+  it('can be created containing a nested object using a path expression after an array assignment', () => {
+    const mocked = {} as { value: Array<{ outer: { inner: string } }> }
+    const mock = munamuna(mocked)
+    mock.value = [{ outer: { inner: 'small cheese' } }]
+    mock.value[1].outer.inner = 'big cheese'
+    expect(mocked).toEqual({
+      value: [{ outer: { inner: 'small cheese' } }, { outer: { inner: 'big cheese' } }],
+    })
+  })
+
+  it('can be created containing with nested arrays using consecutive integral indexes', () => {
+    const mocked = {} as { value: Array<Array<{ inner: string }>> }
+    const mock = munamuna(mocked)
+    mock.value[0][0].inner = 'your cat'
+    expect(mocked).toEqual({ value: [[{ inner: 'your cat' }]] })
+  })
+})
+```
 
 ### Resetting mocks
 
@@ -355,7 +394,7 @@ it('can reattach detached mocked data', () => {
 })
 ```
 
-Note here that the detached `munamuna` is returned from the detach call and is used to reattach the object.
+Note here that the detached `munamuna` is returned from the `[detach]` call and is used to reattach the object.
 Using `funReturns.outer2[reattach]` would not work as the access of `runReturns.outer2` will create a new `munamuna` when it determines no existing `munamuna` is attached to the tree at `funReturns.outer2`.
 
 Alternatively a reference to the `munamuna` can be created before it is detached and used to reattach it:
@@ -423,7 +462,7 @@ it('can use destructuring syntax with [set] to alter multiple paths', () => {
 
 ### Gotchas
 
-Setting a non-object value then using a path assignment on an object that was constructed before this will not work as the assignment of the primitive value will detach the object used by the pre-existing proxy from the mocked object graph.
+Setting a primitive value then using a path assignment on an object that was constructed before this assignment will not work as the assignment of the primitive value will detach the object used by the pre-existing proxy from the mocked object graph.
 
 ```typescript
 it('cannot assign a primitive value then use a path assignment from a pre-existing reference', () => {
@@ -470,7 +509,7 @@ it("can use [reattach] to reattach a proxy's object to the mock", () => {
 })
 ```
 
-The same limitation and work-arounds apply when using `[set]`:
+The same limitation and workarounds apply when using `[set]`:
 
 ```typescript
 it('cannot use [set] to create a primitive value then use a path assignment from a pre-existing reference', () => {

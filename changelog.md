@@ -1,3 +1,9 @@
+## 0.3.0 - 2024-11-05
+
+- Add support for arrays
+- Remove map lookups used for determing parent and key of an object to improve performance and simplify code
+- Fix some bugs around interactions with `[set]`
+
 ## 0.2.1 - 2024-11-04
 
 - Make `[reset]()` and `[reattach]()` return the associated proxy
